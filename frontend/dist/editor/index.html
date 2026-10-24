@@ -1,0 +1,860 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Редактор планов этажей | ТТК Карта пространства</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body class="bg-slate-900 text-slate-100 h-screen flex flex-col overflow-hidden font-sans select-none">
+
+  <!-- Шапка приложения: строгая компактная высота h-12 без раздувания и без наездов на холст -->
+  <header class="bg-slate-800 border-b border-slate-700 h-12 shrink-0 px-3 flex items-center justify-between shadow-md z-20 flex-nowrap overflow-x-auto select-none gap-2">
+    <div class="flex items-center gap-2 shrink-0">
+      <div class="bg-red-600 text-white rounded-lg font-black text-xs tracking-wider flex items-center justify-center size-7 shadow">
+        ТТК
+      </div>
+      <div>
+        <h1 class="text-xs font-bold text-white tracking-wide leading-tight">Редактор планов</h1>
+        <p class="text-[10px] text-slate-400 leading-tight">2D-план этажей</p>
+      </div>
+    </div>
+
+    <!-- Переключатель инструментов -->
+    <div class="flex items-center bg-slate-900/80 p-0.5 rounded-xl border border-slate-700 gap-0.5 shrink-0">
+      <button id="tool-select" class="tool-btn px-2.5 py-1 rounded-lg text-xs flex items-center gap-1.5 transition active-tool" title="Курсор: перемещение по плану и выбор объектов">
+        <i class="fa-solid fa-arrow-pointer text-blue-400 text-xs"></i>
+        <span>Курсор</span>
+      </button>
+      <button id="tool-corner" class="tool-btn px-2.5 py-1 rounded-lg text-xs flex items-center gap-1.5 transition hover:bg-slate-800 text-slate-300" title="Поставить точку или перетащить">
+        <i class="fa-solid fa-circle-dot text-amber-400 text-xs"></i>
+        <span>Точка</span>
+      </button>
+      <button id="tool-wall" class="tool-btn px-2.5 py-1 rounded-lg text-xs flex items-center gap-1.5 transition hover:bg-slate-800 text-slate-300" title="Соединить точки в стену">
+        <i class="fa-solid fa-draw-polygon text-emerald-400 text-xs"></i>
+        <span>Стена</span>
+      </button>
+      <button id="tool-room" class="tool-btn px-2.5 py-1 rounded-lg text-xs flex items-center gap-1.5 transition hover:bg-slate-800 text-slate-300" title="Создать комнату / зону">
+        <i class="fa-solid fa-vector-square text-cyan-400 text-xs"></i>
+        <span>Зона</span>
+      </button>
+      <button id="tool-poi" class="tool-btn px-2.5 py-1 rounded-lg text-xs flex items-center gap-1.5 transition hover:bg-slate-800 text-slate-300" title="Добавить точку интереса">
+        <i class="fa-solid fa-location-dot text-rose-400 text-xs"></i>
+        <span>POI</span>
+      </button>
+      <button id="tool-pano" class="tool-btn px-2.5 py-1 rounded-lg text-xs flex items-center gap-1.5 transition hover:bg-slate-800 text-slate-300" title="Создать панораму 360°">
+        <i class="fa-solid fa-camera text-indigo-400 text-xs"></i>
+        <span>360°</span>
+      </button>
+      <button id="tool-delete" class="tool-btn px-2.5 py-1 rounded-lg text-xs flex items-center gap-1.5 transition hover:bg-slate-800 text-slate-300" title="Удалить кликом">
+        <i class="fa-solid fa-trash-can text-slate-400 hover:text-rose-400 text-xs"></i>
+        <span>Удалить</span>
+      </button>
+    </div>
+
+    <!-- Экспорт / Импорт / Сохранение -->
+    <div class="flex items-center gap-1.5 shrink-0">
+      <button id="btn-save-plan-quick" class="bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition shadow shadow-emerald-600/30 cursor-pointer" title="Сохранить план помещения в проект">
+        <i class="fa-solid fa-floppy-disk text-xs"></i>
+        <span>Сохранить</span>
+      </button>
+
+      <label class="cursor-pointer bg-slate-700 hover:bg-slate-600 text-slate-200 px-2.5 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5 transition border border-slate-600" title="Загрузить JSON">
+        <i class="fa-solid fa-file-import text-blue-400 text-xs"></i>
+        <span class="hidden md:inline">Импорт</span>
+        <input type="file" id="json-file-input" accept=".json" class="hidden">
+      </label>
+
+      <button id="btn-export-json" class="bg-slate-700 hover:bg-slate-600 text-slate-200 px-2.5 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5 transition border border-slate-600" title="Скачать JSON на диск">
+        <i class="fa-solid fa-download text-emerald-400 text-xs"></i>
+        <span class="hidden md:inline">Экспорт</span>
+      </button>
+
+      <button id="btn-view-json" class="bg-slate-700 hover:bg-slate-600 text-slate-300 hover:text-white px-2 py-1.5 rounded-lg text-xs font-medium flex items-center transition border border-slate-600" title="Посмотреть JSON код">
+        <i class="fa-solid fa-code text-xs"></i>
+      </button>
+    </div>
+  </header>
+
+  <!-- Основное рабочее пространство -->
+  <div class="flex-1 flex overflow-hidden relative">
+    
+    <!-- Левая панель: Этажи, Вершины и Стены -->
+    <aside id="editor-sidebar" class="w-80 shrink-0 bg-slate-800/95 border-r border-slate-700 flex flex-col z-10 shadow-lg text-slate-200 transition-all duration-300 relative">
+      
+      <!-- Вкладки управления (5 основных разделов без вылезания) -->
+      <div class="grid grid-cols-5 gap-1 border-b border-slate-700 bg-slate-900/80 p-1.5 text-[10px]">
+        <button id="tab-btn-floors" class="sidebar-tab py-1.5 px-1 rounded-lg font-semibold flex items-center justify-center gap-1 bg-slate-800 text-white shadow-sm border border-slate-700" title="Этажи">
+          <i class="fa-solid fa-layer-group text-red-500"></i>
+          <span>Этажи</span>
+        </button>
+        <button id="tab-btn-corners" class="sidebar-tab py-1.5 px-1 rounded-lg font-medium flex items-center justify-center gap-1 text-slate-400 hover:text-white hover:bg-slate-800/50 transition" title="Вершины">
+          <i class="fa-solid fa-circle-dot text-amber-400"></i>
+          <span>Углы (<span id="tab-corners-count">0</span>)</span>
+        </button>
+        <button id="tab-btn-walls" class="sidebar-tab py-1.5 px-1 rounded-lg font-medium flex items-center justify-center gap-1 text-slate-400 hover:text-white hover:bg-slate-800/50 transition" title="Стены">
+          <i class="fa-solid fa-draw-polygon text-emerald-400"></i>
+          <span>Стены (<span id="tab-walls-count">0</span>)</span>
+        </button>
+        <button id="tab-btn-rooms" class="sidebar-tab py-1.5 px-1 rounded-lg font-medium flex items-center justify-center gap-1 text-slate-400 hover:text-white hover:bg-slate-800/50 transition" title="Комнаты">
+          <i class="fa-solid fa-vector-square text-cyan-400"></i>
+          <span>Зоны (<span id="tab-rooms-count">0</span>)</span>
+        </button>
+        <button id="tab-btn-panos" class="sidebar-tab py-1.5 px-1 rounded-lg font-medium flex items-center justify-center gap-1 text-slate-400 hover:text-white hover:bg-slate-800/50 transition" title="Панорамы 360°">
+          <i class="fa-solid fa-camera text-indigo-400"></i>
+          <span>360° (<span id="tab-panos-count">0</span>)</span>
+        </button>
+      </div>
+
+      <!-- Вкладка 1: Этажи -->
+      <div id="tab-content-floors" class="flex-1 flex flex-col overflow-hidden">
+        <div class="p-3 border-b border-slate-700/80 flex items-center justify-between bg-slate-800/40">
+          <span class="text-xs font-bold uppercase tracking-wider text-slate-300">Список этажей</span>
+          <button id="btn-add-floor" class="text-xs bg-red-600/20 text-red-400 hover:bg-red-600 hover:text-white px-2 py-1 rounded border border-red-500/40 transition flex items-center gap-1">
+            <i class="fa-solid fa-plus"></i> Новый этаж
+          </button>
+        </div>
+
+        <div id="floors-list" class="flex-1 overflow-y-auto p-3 space-y-2">
+          <!-- Генерируется из JS -->
+        </div>
+
+        <!-- Параметры текущего этажа -->
+        <div class="p-4 border-t border-slate-700 bg-slate-900/40 space-y-3">
+          <h3 class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Параметры выбранного этажа</h3>
+          <div class="space-y-1">
+            <label class="text-[11px] text-slate-400">Название:</label>
+            <input type="text" id="input-floor-name" class="w-full bg-slate-900 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-white focus:border-red-500 focus:outline-none">
+          </div>
+          <div class="grid grid-cols-2 gap-2">
+            <div class="space-y-1">
+              <label class="text-[11px] text-slate-400">Уровень (№):</label>
+              <input type="number" id="input-floor-level" class="w-full bg-slate-900 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-white focus:border-red-500 focus:outline-none">
+            </div>
+            <div class="space-y-1">
+              <label class="text-[11px] text-slate-400">Высота (м):</label>
+              <input type="number" step="0.1" id="input-floor-height" class="w-full bg-slate-900 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-white focus:border-red-500 focus:outline-none">
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Вкладка 2: Список вершин (углов) -->
+      <div id="tab-content-corners" class="flex-1 flex flex-col overflow-hidden hidden">
+        <div class="p-3 border-b border-slate-700/80 flex items-center justify-between bg-slate-800/40">
+          <span class="text-xs font-bold uppercase tracking-wider text-amber-400 flex items-center gap-1.5">
+            <i class="fa-solid fa-circle-dot"></i> Вершины этажа
+          </span>
+          <span class="text-[11px] text-slate-400">Клик для перехода</span>
+        </div>
+        <div id="corners-list" class="flex-1 overflow-y-auto p-2.5 space-y-1.5">
+          <!-- Генерируется из JS -->
+        </div>
+      </div>
+
+      <!-- Вкладка 3: Список стен (с длинами) -->
+      <div id="tab-content-walls" class="flex-1 flex flex-col overflow-hidden hidden">
+        <div class="p-3 border-b border-slate-700/80 flex items-center justify-between bg-slate-800/40">
+          <span class="text-xs font-bold uppercase tracking-wider text-emerald-400 flex items-center gap-1.5">
+            <i class="fa-solid fa-draw-polygon"></i> Стены этажа
+          </span>
+          <span class="text-[11px] text-slate-400">Клик для подсветки</span>
+        </div>
+        <div id="walls-list" class="flex-1 overflow-y-auto p-2.5 space-y-1.5">
+          <!-- Генерируется из JS -->
+        </div>
+      </div>
+
+      <!-- Вкладка 4: Список комнат/зон -->
+      <div id="tab-content-rooms" class="flex-1 flex flex-col overflow-hidden hidden">
+        <div class="p-3 border-b border-slate-700/80 flex items-center justify-between bg-slate-800/40">
+          <span class="text-xs font-bold uppercase tracking-wider text-cyan-400 flex items-center gap-1.5">
+            <i class="fa-solid fa-vector-square"></i> Комнаты и зоны
+          </span>
+          <span class="text-[11px] text-slate-400">Клик для перехода</span>
+        </div>
+        <div id="rooms-list" class="flex-1 overflow-y-auto p-2.5 space-y-1.5">
+          <!-- Генерируется из JS -->
+        </div>
+      </div>
+
+      <!-- Вкладка 4: Список панорам (360°) -->
+      <div id="tab-content-panos" class="flex-1 flex flex-col overflow-hidden hidden">
+        <div class="p-3 border-b border-slate-700/80 flex items-center justify-between bg-slate-800/40">
+          <span class="text-xs font-bold uppercase tracking-wider text-indigo-400 flex items-center gap-1.5">
+            <i class="fa-solid fa-camera"></i> Панорамы 360°
+          </span>
+          <button id="btn-open-pano-guide" class="text-[11px] text-indigo-300 hover:text-white underline flex items-center gap-1">
+            <i class="fa-solid fa-book-open"></i> Памятка
+          </button>
+        </div>
+        <div class="p-2 border-b border-slate-700/60 bg-slate-900/40">
+          <button id="btn-start-pano-creation" class="w-full py-2 px-3 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-semibold flex items-center justify-center gap-2 transition shadow shadow-indigo-600/30">
+            <i class="fa-solid fa-camera"></i>
+            <span>Создать панораму</span>
+          </button>
+        </div>
+        <div id="panos-list" class="flex-1 overflow-y-auto p-2.5 space-y-1.5">
+          <!-- Генерируется из JS -->
+        </div>
+      </div>
+
+      </aside>
+
+    <!-- Плавающая кнопка сворачивания / разворачивания панели (снаружи aside, никогда не обрезается!) -->
+    <button id="btn-toggle-sidebar" class="absolute left-[308px] top-3 z-50 w-7 h-7 rounded-full bg-slate-800 border border-slate-600 text-slate-300 hover:text-white hover:bg-slate-700 shadow-xl flex items-center justify-center text-xs transition-all duration-300 cursor-pointer" title="Свернуть панель">
+      <i class="fa-solid fa-chevron-left text-[10px]" id="sidebar-toggle-icon"></i>
+    </button>
+
+    <!-- Холст для рисования -->
+    <main class="flex-1 relative overflow-hidden bg-slate-950 cursor-crosshair" id="canvas-container">
+      <canvas id="viewport-canvas" class="w-full h-full block"></canvas>
+
+      <!-- Парящая плашка подсказок -->
+      <div class="absolute bottom-5 left-6 bg-slate-800/90 backdrop-blur-md border border-slate-700/80 px-4 py-2.5 rounded-xl shadow-xl text-xs text-slate-300 pointer-events-none flex items-center gap-3">
+        <div id="status-hint" class="flex items-center gap-2">
+          <i class="fa-solid fa-circle-info text-blue-400"></i>
+          <span>Выберите инструмент для работы</span>
+        </div>
+        <div class="h-3 w-px bg-slate-600"></div>
+        <div class="text-[11px] text-slate-400">
+          Сетка: <strong>20px</strong> | Масштаб: <span id="zoom-indicator">100%</span>
+        </div>
+      </div>
+
+      <!-- Плавающие кнопки навигации (Zoom / Reset) -->
+      <div class="absolute bottom-5 right-6 flex flex-col gap-2">
+        <button id="btn-zoom-in" class="w-9 h-9 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-white rounded-lg flex items-center justify-center transition shadow-lg" title="Приблизить">
+          <i class="fa-solid fa-plus"></i>
+        </button>
+        <button id="btn-zoom-out" class="w-9 h-9 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-white rounded-lg flex items-center justify-center transition shadow-lg" title="Отдалить">
+          <i class="fa-solid fa-minus"></i>
+        </button>
+        <button id="btn-reset-view" class="w-9 h-9 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-white rounded-lg flex items-center justify-center transition shadow-lg" title="Сбросить вид в центр">
+          <i class="fa-solid fa-arrows-to-dot"></i>
+        </button>
+      </div>
+    </main>
+  </div>
+
+  <!-- Модальное окно создания новой точки -->
+  <div id="modal-corner-create" class="fixed inset-0 bg-black/75 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-slate-800 border border-slate-700 rounded-2xl w-full max-w-md flex flex-col shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-150">
+      <div class="px-5 py-3.5 border-b border-slate-700 flex items-center justify-between bg-slate-800/90">
+        <div class="flex items-center gap-2">
+          <i class="fa-solid fa-circle-plus text-red-500 text-lg"></i>
+          <h3 class="font-bold text-sm text-white">Создание новой точки (угла)</h3>
+        </div>
+        <button id="btn-close-create-modal" class="text-slate-400 hover:text-white transition">
+          <i class="fa-solid fa-xmark text-base"></i>
+        </button>
+      </div>
+
+      <form id="form-create-corner" class="p-5 space-y-4">
+        <!-- Режим задания координат -->
+        <div class="flex bg-slate-900 p-1 rounded-xl border border-slate-700 text-xs">
+          <button type="button" id="tab-mode-absolute" class="flex-1 py-1.5 rounded-lg font-semibold bg-red-600 text-white transition">
+            Абсолютные (X, Y)
+          </button>
+          <button type="button" id="tab-mode-relative" class="flex-1 py-1.5 rounded-lg font-medium text-slate-400 hover:text-white transition">
+            Относительно другой точки
+          </button>
+        </div>
+
+        <!-- 1. Абсолютные координаты -->
+        <div id="section-mode-absolute" class="grid grid-cols-2 gap-3">
+          <div class="space-y-1">
+            <label class="text-xs text-slate-300 font-medium flex items-center justify-between">
+              <span>Координата X:</span>
+              <span class="text-[10px] text-red-400 font-mono">+X вправо</span>
+            </label>
+            <input type="number" id="input-create-x" class="w-full bg-slate-900 border border-slate-600 focus:border-red-500 rounded-lg px-3 py-2 text-sm text-white focus:outline-none font-mono">
+          </div>
+          <div class="space-y-1">
+            <label class="text-xs text-slate-300 font-medium flex items-center justify-between">
+              <span>Координата Y:</span>
+              <span class="text-[10px] text-emerald-400 font-mono">+Y вверх</span>
+            </label>
+            <input type="number" id="input-create-y" class="w-full bg-slate-900 border border-slate-600 focus:border-red-500 rounded-lg px-3 py-2 text-sm text-white focus:outline-none font-mono">
+          </div>
+        </div>
+
+        <!-- 2. Относительные координаты -->
+        <div id="section-mode-relative" class="space-y-3 hidden">
+          <div class="space-y-1">
+            <label class="text-xs text-slate-300 font-medium">Базовая точка отсчета:</label>
+            <select id="select-relative-base" class="w-full bg-slate-900 border border-slate-600 focus:border-red-500 rounded-lg px-3 py-2 text-xs text-white focus:outline-none font-mono">
+              <!-- Опции заполняются динамически -->
+            </select>
+          </div>
+
+          <div class="grid grid-cols-2 gap-3">
+            <div class="space-y-1">
+              <label class="text-xs text-slate-300 font-medium flex items-center justify-between">
+                <span>Смещение ΔX:</span>
+                <span class="text-[10px] text-slate-400">влево/вправо</span>
+              </label>
+              <input type="number" id="input-rel-dx" value="200" class="w-full bg-slate-900 border border-slate-600 focus:border-red-500 rounded-lg px-3 py-2 text-sm text-white focus:outline-none font-mono">
+            </div>
+            <div class="space-y-1">
+              <label class="text-xs text-slate-300 font-medium flex items-center justify-between">
+                <span>Смещение ΔY:</span>
+                <span class="text-[10px] text-slate-400">вниз/вверх</span>
+              </label>
+              <input type="number" id="input-rel-dy" value="0" class="w-full bg-slate-900 border border-slate-600 focus:border-red-500 rounded-lg px-3 py-2 text-sm text-white focus:outline-none font-mono">
+            </div>
+          </div>
+
+          <div class="pt-1">
+            <label class="flex items-center gap-2 cursor-pointer text-xs text-slate-300 hover:text-white select-none">
+              <input type="checkbox" id="check-connect-wall" checked class="w-4 h-4 rounded text-red-600 bg-slate-900 border-slate-600 focus:ring-0">
+              <span>Сразу соединить стеной с базовой точкой</span>
+            </label>
+          </div>
+        </div>
+
+        <!-- Итоговые вычисленные координаты -->
+        <div class="bg-slate-950/80 border border-slate-700/80 p-2.5 rounded-xl flex items-center justify-between text-xs">
+          <span class="text-slate-400">Итоговые координаты:</span>
+          <span class="font-mono font-bold text-emerald-400" id="preview-final-coords">(0, 0)</span>
+        </div>
+
+        <div class="flex justify-end gap-2 pt-2 border-t border-slate-700/60">
+          <button type="button" id="btn-cancel-create-modal" class="text-xs px-3.5 py-2 rounded-lg bg-slate-700 hover:bg-slate-600 text-slate-300 transition">
+            Отмена (Esc)
+          </button>
+          <button type="submit" class="text-xs px-4 py-2 rounded-lg bg-red-600 hover:bg-red-500 text-white font-semibold transition shadow shadow-red-600/30 flex items-center gap-1.5">
+            <i class="fa-solid fa-check"></i>
+            <span>Поставить точку</span>
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Модальное окно редактирования координат точки -->
+  <div id="modal-corner-edit" class="fixed inset-0 bg-black/75 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-slate-800 border border-slate-700 rounded-xl w-full max-w-sm flex flex-col shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-150">
+      <div class="px-4 py-3 border-b border-slate-700 flex items-center justify-between bg-slate-800/90">
+        <div class="flex items-center gap-2">
+          <i class="fa-solid fa-location-crosshairs text-amber-400"></i>
+          <h3 class="font-bold text-sm text-white">Редактирование точки <span id="edit-corner-id" class="text-amber-400 font-mono"></span></h3>
+        </div>
+        <button id="btn-close-corner-modal" class="text-slate-400 hover:text-white transition">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+      <form id="form-edit-corner" class="p-4 space-y-4">
+        <div class="grid grid-cols-2 gap-3">
+          <div class="space-y-1">
+            <label class="text-xs text-slate-300 font-medium">Координата X (px):</label>
+            <input type="number" id="input-corner-x" required class="w-full bg-slate-900 border border-slate-600 focus:border-red-500 rounded-lg px-3 py-2 text-sm text-white focus:outline-none font-mono">
+          </div>
+          <div class="space-y-1">
+            <label class="text-xs text-slate-300 font-medium">Координата Y (px):</label>
+            <input type="number" id="input-corner-y" required class="w-full bg-slate-900 border border-slate-600 focus:border-red-500 rounded-lg px-3 py-2 text-sm text-white focus:outline-none font-mono">
+          </div>
+        </div>
+        <div class="flex justify-end gap-2 pt-2 border-t border-slate-700/60">
+          <button type="button" id="btn-cancel-corner-modal" class="text-xs px-3 py-2 rounded-lg bg-slate-700 hover:bg-slate-600 text-slate-300 transition">
+            Отмена
+          </button>
+          <button type="submit" class="text-xs px-4 py-2 rounded-lg bg-red-600 hover:bg-red-500 text-white font-medium transition shadow shadow-red-600/30">
+            Сохранить координаты
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Модальное окно создания и редактирования комнаты -->
+  <div id="modal-room-edit" class="fixed inset-0 bg-black/75 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-slate-800 border border-slate-700 rounded-2xl w-full max-w-sm flex flex-col shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-150">
+      <div class="px-5 py-3.5 border-b border-slate-700 flex items-center justify-between bg-slate-800/90">
+        <div class="flex items-center gap-2">
+          <i class="fa-solid fa-vector-square text-cyan-400"></i>
+          <h3 class="font-bold text-sm text-white" id="title-modal-room">Название комнаты</h3>
+        </div>
+        <button id="btn-close-room-modal" class="text-slate-400 hover:text-white transition">
+          <i class="fa-solid fa-xmark text-base"></i>
+        </button>
+      </div>
+
+      <form id="form-edit-room" class="p-5 space-y-4">
+        <div class="space-y-1">
+          <label class="text-xs text-slate-300 font-medium">Название помещения:</label>
+          <input type="text" id="input-room-name" required placeholder="Например: Конференц-зал А" class="w-full bg-slate-900 border border-slate-600 focus:border-cyan-500 rounded-lg px-3 py-2 text-sm text-white focus:outline-none">
+        </div>
+
+        <div class="space-y-1.5">
+          <label class="text-xs text-slate-300 font-medium">Цвет подсветки зоны:</label>
+          <div class="flex items-center gap-2" id="room-color-presets">
+            <button type="button" data-color="#3b82f6" class="w-7 h-7 rounded-full bg-blue-500 ring-2 ring-white transition"></button>
+            <button type="button" data-color="#10b981" class="w-7 h-7 rounded-full bg-emerald-500 transition"></button>
+            <button type="button" data-color="#f59e0b" class="w-7 h-7 rounded-full bg-amber-500 transition"></button>
+            <button type="button" data-color="#8b5cf6" class="w-7 h-7 rounded-full bg-purple-500 transition"></button>
+            <button type="button" data-color="#ec4899" class="w-7 h-7 rounded-full bg-pink-500 transition"></button>
+            <button type="button" data-color="#06b6d4" class="w-7 h-7 rounded-full bg-cyan-500 transition"></button>
+          </div>
+          <input type="hidden" id="input-room-color" value="#3b82f6">
+        </div>
+
+        <div class="text-[11px] text-slate-400 bg-slate-900/60 p-2.5 rounded-lg border border-slate-700/60">
+          Углы контура: <span id="label-room-corners" class="font-mono text-cyan-400 font-bold">1, 2, 3, 4</span>
+        </div>
+
+        <div class="flex justify-end gap-2 pt-2 border-t border-slate-700/60">
+          <button type="button" id="btn-cancel-room-modal" class="text-xs px-3.5 py-2 rounded-lg bg-slate-700 hover:bg-slate-600 text-slate-300 transition">
+            Отмена (Esc)
+          </button>
+          <button type="submit" class="text-xs px-4 py-2 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white font-semibold transition shadow shadow-cyan-600/30">
+            Сохранить название
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Модальное окно точки интереса (POI) -->
+  <div id="modal-poi-edit" class="fixed inset-0 bg-black/75 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-slate-800 border border-slate-700 rounded-2xl w-full max-w-sm flex flex-col shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-150">
+      <div class="px-5 py-3.5 border-b border-slate-700 flex items-center justify-between bg-slate-800/90">
+        <div class="flex items-center gap-2">
+          <i class="fa-solid fa-location-dot text-rose-500 text-base"></i>
+          <h3 class="font-bold text-sm text-white" id="title-modal-poi">Точка интереса</h3>
+        </div>
+        <button id="btn-close-poi-modal" class="text-slate-400 hover:text-white transition">
+          <i class="fa-solid fa-xmark text-base"></i>
+        </button>
+      </div>
+
+      <form id="form-edit-poi" class="p-5 space-y-4">
+        <div class="space-y-1">
+          <label class="text-xs text-slate-300 font-medium">Название точки:</label>
+          <input type="text" id="input-poi-name" required placeholder="Например: Стойка регистрации" class="w-full bg-slate-900 border border-slate-600 focus:border-rose-500 rounded-lg px-3 py-2 text-sm text-white focus:outline-none">
+        </div>
+
+        <div class="space-y-1">
+          <label class="text-xs text-slate-300 font-medium">Привязка к комнате (помещению):</label>
+          <select id="select-poi-room" required class="w-full bg-slate-900 border border-slate-600 focus:border-rose-500 rounded-lg px-3 py-2 text-xs text-white focus:outline-none font-mono">
+            <!-- Список комнат -->
+          </select>
+        </div>
+
+        <div class="space-y-1">
+          <label class="text-xs text-slate-300 font-medium">Категория / Тип:</label>
+          <select id="select-poi-category" class="w-full bg-slate-900 border border-slate-600 focus:border-rose-500 rounded-lg px-3 py-2 text-xs text-white focus:outline-none">
+            <option value="stand">Выставочный стенд</option>
+            <option value="info">Инфостойка / Ресепшн</option>
+            <option value="food">Кофе / Еда / Напитки</option>
+            <option value="wifi">Точка Wi-Fi</option>
+            <option value="service">Сервис / Услуга</option>
+            <option value="wc">Санузел</option>
+            <option value="entrance">Вход / Выход</option>
+          </select>
+        </div>
+
+        <div class="text-[11px] text-slate-400 bg-slate-900/60 p-2.5 rounded-lg border border-slate-700/60 flex justify-between">
+          <span>Координаты:</span>
+          <span id="label-poi-coords" class="font-mono text-rose-400 font-bold">X: 0, Y: 0</span>
+        </div>
+
+        <div class="flex justify-end gap-2 pt-2 border-t border-slate-700/60">
+          <button type="button" id="btn-cancel-poi-modal" class="text-xs px-3.5 py-2 rounded-lg bg-slate-700 hover:bg-slate-600 text-slate-300 transition">
+            Отмена (Esc)
+          </button>
+          <button type="submit" class="text-xs px-4 py-2 rounded-lg bg-rose-600 hover:bg-rose-500 text-white font-semibold transition shadow shadow-rose-600/30">
+            Сохранить точку
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Модальное окно просмотра / редактирования JSON -->
+  <div id="modal-json" class="fixed inset-0 bg-black/75 backdrop-blur-sm z-50 hidden flex items-center justify-center p-6">
+    <div class="bg-slate-800 border border-slate-700 rounded-2xl w-full max-w-3xl flex flex-col shadow-2xl max-h-[90vh]">
+      <div class="px-5 py-4 border-b border-slate-700 flex items-center justify-between">
+        <div class="flex items-center gap-2">
+          <i class="fa-solid fa-code text-red-500"></i>
+          <h3 class="font-bold text-sm text-white">Просмотр и редактирование структуры JSON</h3>
+        </div>
+        <button id="btn-close-modal" class="text-slate-400 hover:text-white transition">
+          <i class="fa-solid fa-xmark text-lg"></i>
+        </button>
+      </div>
+      <div class="p-4 flex-1 overflow-hidden flex flex-col">
+        <textarea id="json-editor-textarea" class="w-full flex-1 bg-slate-950 text-emerald-400 font-mono text-xs p-3 rounded-lg border border-slate-700 focus:outline-none focus:border-red-500 resize-none overflow-y-auto" spellcheck="false"></textarea>
+      </div>
+      <div class="px-5 py-3 border-t border-slate-700 flex justify-between items-center bg-slate-800/80 rounded-b-2xl">
+        <button id="btn-copy-json" class="text-xs bg-slate-700 hover:bg-slate-600 text-slate-200 px-3 py-1.5 rounded-lg border border-slate-600 transition flex items-center gap-1.5">
+          <i class="fa-regular fa-copy"></i> Копировать в буфер
+        </button>
+        <div class="flex gap-2">
+          <button id="btn-apply-json" class="text-xs bg-emerald-600 hover:bg-emerald-500 text-white font-medium px-4 py-1.5 rounded-lg transition">
+            Применить изменения
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================================ -->
+  <!-- 1. МОДАЛЬНОЕ ОКНО: ПАМЯТКА ПО СЪЕМКЕ В PANORAMA 360          -->
+  <!-- ============================================================ -->
+  <div id="modal-pano-help" class="fixed inset-0 bg-black/80 backdrop-blur-md z-[70] hidden flex items-center justify-center p-4">
+    <div class="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-lg flex flex-col shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-150 max-h-[92vh]">
+      <div class="px-5 py-3.5 border-b border-slate-700 flex items-center justify-between bg-slate-800/90">
+        <div class="flex items-center gap-2.5">
+          <div class="w-8 h-8 rounded-lg bg-indigo-600/30 text-indigo-400 flex items-center justify-center border border-indigo-500/40">
+            <i class="fa-solid fa-mobile-screen-button"></i>
+          </div>
+          <div>
+            <h3 class="font-bold text-sm text-white">360° Панорама со смартфона</h3>
+            <p class="text-[11px] text-slate-400">Как создать и добавить круговую панораму на план</p>
+          </div>
+        </div>
+        <button id="btn-close-pano-help" class="text-slate-400 hover:text-white transition p-1">
+          <i class="fa-solid fa-xmark text-lg"></i>
+        </button>
+      </div>
+
+      <div class="p-5 space-y-3 overflow-y-auto text-xs text-slate-300">
+        <div class="p-3 bg-indigo-950/40 border border-indigo-500/30 rounded-xl flex items-start gap-3">
+          <div class="w-7 h-7 rounded-lg bg-indigo-600 text-white flex-shrink-0 flex items-center justify-center font-bold text-xs">
+            1
+          </div>
+          <div>
+            <div class="font-bold text-indigo-300 text-[13px] mb-0.5">Съемка на смартфоне</div>
+            <p class="text-slate-300 leading-relaxed">
+              Откройте на телефоне камеру в режиме круговой панорамы или любое приложение для 360° фото. Встаньте в нужной точке комнаты и сделайте полный круговой 360° снимок помещения по экранным меткам.
+            </p>
+          </div>
+        </div>
+
+        <div class="p-3 bg-slate-950/60 border border-slate-700/70 rounded-xl flex items-start gap-3">
+          <div class="w-7 h-7 rounded-lg bg-indigo-600 text-white flex-shrink-0 flex items-center justify-center font-bold text-xs">
+            2
+          </div>
+          <div>
+            <div class="font-bold text-white text-[13px] mb-0.5">Сохранение фото (.jpg)</div>
+            <p class="text-slate-300 leading-relaxed">
+              Сохраните готовую панораму в галерею телефона. Передайте файл на компьютер (через Telegram, USB-кабель, диск или почту).
+            </p>
+          </div>
+        </div>
+
+        <div class="p-3 bg-emerald-950/40 border border-emerald-500/30 rounded-xl flex items-start gap-3">
+          <div class="w-7 h-7 rounded-lg bg-emerald-600 text-white flex-shrink-0 flex items-center justify-center font-bold text-xs">
+            3
+          </div>
+          <div>
+            <div class="font-bold text-emerald-300 text-[13px] mb-0.5">Привязка к точке на плане</div>
+            <p class="text-slate-300 leading-relaxed">
+              Выберите инструмент <b>Панорама 360°</b> на панели инструментов и кликните в комнате (или просто <b>перетащите файл фото прямо на план</b>).
+            </p>
+          </div>
+        </div>
+
+        <div class="p-3 bg-slate-950/60 border border-slate-700/70 rounded-xl flex items-start gap-3">
+          <div class="w-7 h-7 rounded-lg bg-cyan-600 text-white flex-shrink-0 flex items-center justify-center font-bold text-xs">
+            4
+          </div>
+          <div>
+            <div class="font-bold text-cyan-300 text-[13px] mb-0.5">Интерактивный просмотр в приложении</div>
+            <p class="text-slate-300 leading-relaxed">
+              Нажмите на созданную точку на плане — откроется 3D-просмотрщик, где можно вращаться на 360°, приближать детали и совершать виртуальный тур!
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <div class="px-5 py-3 border-t border-slate-700 bg-slate-800/80 flex justify-end">
+        <button id="btn-confirm-pano-help" class="px-5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-xs rounded-lg transition shadow shadow-indigo-600/30">
+          Понятно, закрыть
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================================ -->
+  <!-- 2. МОДАЛЬНОЕ ОКНО: ТОЧКА ПАНОРАМЫ (ЗАГРУЗКА И ПРИВЯЗКА ФОТО)  -->
+  <!-- ============================================================ -->
+  <div id="modal-pano-edit" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-60 hidden flex items-center justify-center p-4">
+    <div class="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-150">
+      
+      <!-- Заголовок -->
+      <div class="px-5 py-3.5 border-b border-slate-700 flex items-center justify-between bg-slate-800/90">
+        <div class="flex items-center gap-2.5">
+          <div class="w-8 h-8 rounded-lg bg-indigo-600/30 text-indigo-400 border border-indigo-500/40 flex items-center justify-center">
+            <i class="fa-solid fa-street-view text-base"></i>
+          </div>
+          <div>
+            <h3 id="modal-pano-edit-title" class="font-bold text-sm text-white">Точка панорамы 360°</h3>
+            <p class="text-[11px] text-slate-400">Привязка сферического фото (равнопромежуточная проекция 2:1)</p>
+          </div>
+        </div>
+        <button id="btn-close-pano-edit" type="button" class="text-slate-400 hover:text-white transition p-1">
+          <i class="fa-solid fa-xmark text-base"></i>
+        </button>
+      </div>
+
+      <!-- Форма -->
+      <form id="form-edit-pano" class="p-5 space-y-4">
+        
+        <!-- Загрузка фото (Drag & Drop + Input) -->
+        <div class="space-y-1.5">
+          <div class="flex items-center justify-between">
+            <label class="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
+              <i class="fa-solid fa-image text-indigo-400"></i>
+              <span>360° Панорамный снимок (JPG / PNG):</span>
+            </label>
+            <span id="pano-file-info-badge" class="text-[10px] text-slate-400 font-mono"></span>
+          </div>
+
+          <!-- Переключатель режима: Готовое 360 фото / Сшить из 2х180 -->
+          <div class="flex items-center gap-1.5 p-1 bg-slate-900 rounded-xl border border-slate-700/80 mb-2">
+            <button type="button" id="tab-pano-mode-single" class="flex-1 py-1.5 px-3 rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 transition bg-indigo-600 text-white shadow">
+              <i class="fa-solid fa-image"></i>
+              <span>Готовая 360° панорама</span>
+            </button>
+            <button type="button" id="tab-pano-mode-stitch" class="flex-1 py-1.5 px-3 rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 transition text-slate-300 hover:text-white hover:bg-slate-800">
+              <i class="fa-solid fa-wand-magic-sparkles text-amber-400"></i>
+              <span>Сшить из 2-х по 180° (8K)</span>
+            </button>
+          </div>
+
+          <!-- Режим 1: Одиночная 360 панорама -->
+          <div id="pano-single-mode-container" class="space-y-1.5">
+            <input type="file" id="input-pano-file" accept="image/*" class="hidden">
+
+            <!-- Dropzone при отсутствии файла -->
+            <div id="pano-dropzone" class="border-2 border-dashed border-indigo-500/40 hover:border-indigo-400 hover:bg-indigo-950/20 rounded-xl p-5 text-center cursor-pointer transition flex flex-col items-center justify-center gap-2 group bg-slate-950/60">
+              <div class="w-12 h-12 rounded-xl bg-indigo-600/20 text-indigo-400 flex items-center justify-center group-hover:scale-110 transition border border-indigo-500/30">
+                <i class="fa-solid fa-cloud-arrow-up text-xl"></i>
+              </div>
+              <div>
+                <p class="text-xs font-semibold text-white group-hover:text-indigo-300 transition">
+                  Перетащите 360° фото сюда или <span class="text-indigo-400 underline">выберите файл</span>
+                </p>
+                <p class="text-[11px] text-slate-400 mt-0.5">
+                  Поддерживаются форматы JPG, PNG (равнопромежуточная проекция 2:1)
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Режим 2: Сшивка из двух кадров 180° -->
+          <div id="pano-stitch-mode-container" class="space-y-3 hidden">
+            <!-- Инструкция -->
+            <div class="bg-indigo-950/40 border border-indigo-500/30 rounded-xl p-3 text-xs text-slate-300 space-y-2">
+              <div class="font-bold text-indigo-300 flex items-center gap-1.5 text-xs">
+                <i class="fa-solid fa-circle-info"></i>
+                <span>Инструкция по съёмке 2-х кадров на телефон:</span>
+              </div>
+              <ol class="list-decimal list-inside space-y-1 text-[11px] text-slate-300 leading-relaxed">
+                <li>Встаньте в нужной точке комнаты и откройте камеру телефона в режиме <b>«Панорама»</b>.</li>
+                <li>Снимите <b>первую половину (180°)</b>: проведите телефоном от левой стены к правой.</li>
+                <li>Развернитесь и снимите <b>вторую половину (180°)</b> с захватом краев первого снимка (нахлёст 10-20%).</li>
+                <li>Загрузите оба снимка ниже (поддерживаются <b>HEIC, JPG, PNG</b>) и нажмите «Сшить».</li>
+              </ol>
+            </div>
+
+            <!-- Два поля загрузки -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <!-- Кадр 1 -->
+              <div>
+                <label class="text-[11px] font-semibold text-slate-300 mb-1 flex items-center justify-between">
+                  <span>Кадр 1 (первые 180°):</span>
+                  <span id="stitch-frame1-name" class="text-[10px] text-amber-400 font-mono truncate max-w-[120px]"></span>
+                </label>
+                <input type="file" id="input-stitch-frame1" accept="image/*,.heic,.heif" class="hidden">
+                <div id="dropzone-stitch-frame1" class="border-2 border-dashed border-slate-700 hover:border-indigo-400 bg-slate-950/60 rounded-xl p-3 text-center cursor-pointer transition flex flex-col items-center justify-center gap-1.5">
+                  <i class="fa-solid fa-camera text-slate-400 text-lg"></i>
+                  <span class="text-xs text-slate-300 font-medium">Выберите кадр 1</span>
+                  <span class="text-[10px] text-slate-500">HEIC или JPG</span>
+                </div>
+              </div>
+
+              <!-- Кадр 2 -->
+              <div>
+                <label class="text-[11px] font-semibold text-slate-300 mb-1 flex items-center justify-between">
+                  <span>Кадр 2 (вторые 180°):</span>
+                  <span id="stitch-frame2-name" class="text-[10px] text-amber-400 font-mono truncate max-w-[120px]"></span>
+                </label>
+                <input type="file" id="input-stitch-frame2" accept="image/*,.heic,.heif" class="hidden">
+                <div id="dropzone-stitch-frame2" class="border-2 border-dashed border-slate-700 hover:border-indigo-400 bg-slate-950/60 rounded-xl p-3 text-center cursor-pointer transition flex flex-col items-center justify-center gap-1.5">
+                  <i class="fa-solid fa-camera text-slate-400 text-lg"></i>
+                  <span class="text-xs text-slate-300 font-medium">Выберите кадр 2</span>
+                  <span class="text-[10px] text-slate-500">HEIC или JPG</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Кнопка запуска сшивки -->
+            <button type="button" id="btn-execute-stitch" class="w-full py-2.5 px-4 bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-500 hover:to-blue-500 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl text-xs font-bold flex items-center justify-center gap-2 shadow-lg shadow-indigo-600/30 transition">
+              <i class="fa-solid fa-wand-magic-sparkles"></i>
+              <span>⚡ Сшить в бесшовную 360° панораму (8K)</span>
+            </button>
+
+            <!-- Индикатор процесса сшивки -->
+            <div id="stitch-progress-indicator" class="hidden p-3 bg-indigo-950/60 border border-indigo-500/40 rounded-xl flex items-center gap-3">
+              <div class="w-5 h-5 border-2 border-indigo-400 border-t-transparent rounded-full animate-spin shrink-0"></div>
+              <div class="text-xs text-indigo-200">
+                <div class="font-bold">Выполняется сшивка через Python (SIFT + RANSAC)...</div>
+                <div class="text-[10px] text-slate-400">Выравнивание горизонта и бесшовный монтаж (~15 сек)</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Превью загруженного файла -->
+          <div id="pano-preview-container" class="hidden space-y-2">
+            <div class="relative rounded-xl overflow-hidden border border-slate-700 bg-black group h-36 flex items-center justify-center shadow-inner">
+              <img id="pano-preview-img" src="" alt="360 Panorama Preview" class="w-full h-full object-cover">
+              <div class="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition flex items-center justify-center gap-2">
+                <button type="button" id="btn-preview-in-viewer" class="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold flex items-center gap-1.5 shadow-lg transition">
+                  <i class="fa-solid fa-eye"></i>
+                  <span>Посмотреть 360°</span>
+                </button>
+                <button type="button" id="btn-change-pano-file" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold flex items-center gap-1.5 border border-slate-600 shadow-lg transition">
+                  <i class="fa-solid fa-arrow-rotate-right"></i>
+                  <span>Заменить фото</span>
+                </button>
+              </div>
+              <div class="absolute bottom-2 left-2 px-2 py-0.5 rounded bg-black/70 backdrop-blur text-[10px] text-emerald-400 font-mono border border-emerald-500/30 flex items-center gap-1" id="pano-resolution-tag">
+                <i class="fa-solid fa-check text-[9px]"></i> 360° Фото готово
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Параметры: название и комната -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div class="space-y-1">
+            <label class="text-[11px] font-semibold text-slate-300 flex items-center gap-1.5">
+              <i class="fa-solid fa-tag text-indigo-400"></i>
+              <span>Название точки:</span>
+            </label>
+            <input type="text" id="input-edit-pano-name" placeholder="Например: Гостиная" class="w-full bg-slate-950 border border-slate-700 focus:border-indigo-500 rounded-lg px-3 py-2 text-xs text-white focus:outline-none">
+          </div>
+
+          <div class="space-y-1">
+            <label class="text-[11px] font-semibold text-slate-300 flex items-center gap-1.5">
+              <i class="fa-solid fa-vector-square text-cyan-400"></i>
+              <span>Привязанная комната:</span>
+            </label>
+            <select id="select-edit-pano-room" class="w-full bg-slate-950 border border-slate-700 focus:border-indigo-500 rounded-lg px-3 py-2 text-xs text-white focus:outline-none font-mono">
+              <!-- Комнаты текущего этажа -->
+            </select>
+          </div>
+        </div>
+
+        <!-- Координаты -->
+        <div class="p-2.5 bg-slate-950/60 rounded-xl border border-slate-800 flex items-center justify-between text-xs">
+          <span class="text-slate-400 flex items-center gap-1.5">
+            <i class="fa-solid fa-crosshairs text-indigo-400"></i>
+            <span>Координаты на плане:</span>
+          </span>
+          <span id="label-edit-pano-coords" class="font-mono text-indigo-300 font-bold">X: 0, Y: 0</span>
+        </div>
+
+        <div class="flex items-center justify-between pt-2 border-t border-slate-800">
+          <button type="button" id="btn-delete-current-pano" class="px-3 py-2 rounded-lg bg-rose-950/50 hover:bg-rose-900 border border-rose-800/60 text-rose-300 hover:text-white text-xs font-semibold flex items-center gap-1.5 transition hidden">
+            <i class="fa-solid fa-trash"></i>
+            <span>Удалить точку</span>
+          </button>
+          
+          <div class="flex items-center gap-2 ml-auto">
+            <button type="button" id="btn-modal-preview-360" class="px-3.5 py-2 rounded-lg bg-indigo-600/30 hover:bg-indigo-600 border border-indigo-500/50 text-indigo-200 hover:text-white text-xs font-semibold flex items-center gap-1.5 transition shadow">
+              <i class="fa-solid fa-eye"></i>
+              <span>Посмотреть в 360°</span>
+            </button>
+            <button type="button" id="btn-cancel-pano-edit" class="px-4 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold transition">
+              Отмена
+            </button>
+            <button type="submit" class="px-5 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold flex items-center gap-1.5 shadow-lg shadow-indigo-600/30 transition">
+              <i class="fa-solid fa-check"></i>
+              <span>Сохранить точку</span>
+            </button>
+          </div>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ============================================================ -->
+  <!-- 3. МОДАЛЬНОЕ ОКНО: ИНТЕРАКТИВНЫЙ 360° ПРОСМОТРЩИК ПАНОРАМЫ  -->
+  <!-- ============================================================ -->
+  <div id="modal-pano-viewer" class="fixed inset-0 bg-black/90 backdrop-blur-md z-60 hidden flex items-center justify-center p-3 sm:p-6">
+    <div class="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-4xl h-[88vh] flex flex-col shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-150">
+      
+      <!-- Шапка просмотрщика -->
+      <div class="px-5 py-3 border-b border-slate-700 flex items-center justify-between bg-slate-800/90 z-10">
+        <div class="flex items-center gap-3">
+          <div class="w-8 h-8 rounded-lg bg-indigo-600 text-white flex items-center justify-center shadow">
+            <i class="fa-solid fa-street-view"></i>
+          </div>
+          <div>
+            <h3 class="font-bold text-sm text-white flex items-center gap-2">
+              <span id="viewer-pano-title">Панорама 360°</span>
+              <span id="viewer-room-badge" class="text-[10px] font-normal px-2 py-0.5 rounded-full bg-cyan-950 text-cyan-300 border border-cyan-800">Комната</span>
+            </h3>
+            <p class="text-[11px] text-slate-400">
+              <span id="viewer-floor-badge">1 этаж</span> · Координаты: <span id="viewer-coords-badge" class="font-mono text-indigo-300">X: 0, Y: 0</span>
+            </p>
+          </div>
+        </div>
+        <div class="flex items-center gap-2">
+          
+          <button id="btn-viewer-edit-point" class="px-3 py-1.5 rounded-lg bg-indigo-600/30 hover:bg-indigo-600 text-indigo-200 hover:text-white text-xs font-medium flex items-center gap-1.5 transition border border-indigo-500/40" title="Заменить фото или изменить параметры точки">
+            <i class="fa-solid fa-cloud-arrow-up"></i>
+            <span>Заменить фото</span>
+          </button>
+          <button id="btn-viewer-fullscreen" class="px-2.5 py-1.5 rounded-lg bg-slate-700 hover:bg-slate-600 text-slate-200 text-xs font-medium flex items-center gap-1 transition border border-slate-600" title="На весь экран">
+            <i class="fa-solid fa-expand" id="icon-viewer-fullscreen"></i>
+          </button>
+          <button id="btn-viewer-download" class="px-3 py-1.5 rounded-lg bg-emerald-600/20 hover:bg-emerald-600 text-emerald-300 hover:text-white text-xs font-medium flex items-center gap-1.5 transition border border-emerald-500/40" title="Скачать панорамное изображение (.jpg) на телефон или ПК">
+            <i class="fa-solid fa-download"></i>
+            <span>Скачать JPG</span>
+          </button>
+          <button id="btn-viewer-autorotate" class="px-3 py-1.5 rounded-lg bg-slate-700 hover:bg-slate-600 text-slate-200 text-xs font-medium flex items-center gap-1.5 transition border border-slate-600" title="Включить/выключить авто-вращение">
+            <i class="fa-solid fa-play text-indigo-400" id="icon-autorotate"></i>
+            <span>Авто-вращение</span>
+          </button>
+          <button id="btn-close-viewer" class="text-slate-400 hover:text-white transition p-1.5">
+            <i class="fa-solid fa-xmark text-lg"></i>
+          </button>
+        </div>
+      </div>
+
+      <!-- Контейнер панорамного холста 360° -->
+      <div class="flex-1 relative overflow-hidden bg-black select-none" id="viewer-canvas-container">
+        <canvas id="viewer-360-canvas" class="w-full h-full block cursor-grab active:cursor-grabbing"></canvas>
+
+        <!-- Навигационные кнопки поверх вьювера -->
+        <div class="absolute bottom-5 right-5 flex flex-col gap-2 z-10">
+          <button id="btn-viewer-zoom-in" class="w-9 h-9 bg-slate-800/80 hover:bg-slate-700 border border-slate-700 text-white rounded-lg flex items-center justify-center transition shadow-lg backdrop-blur" title="Приблизить">
+            <i class="fa-solid fa-plus"></i>
+          </button>
+          <button id="btn-viewer-zoom-out" class="w-9 h-9 bg-slate-800/80 hover:bg-slate-700 border border-slate-700 text-white rounded-lg flex items-center justify-center transition shadow-lg backdrop-blur" title="Отдалить">
+            <i class="fa-solid fa-minus"></i>
+          </button>
+          <button id="btn-viewer-reset" class="w-9 h-9 bg-slate-800/80 hover:bg-slate-700 border border-slate-700 text-white rounded-lg flex items-center justify-center transition shadow-lg backdrop-blur" title="Сбросить угол">
+            <i class="fa-solid fa-arrows-to-dot"></i>
+          </button>
+        </div>
+
+        <!-- Подсказка управления внизу вьювера -->
+        <div class="absolute bottom-5 left-5 bg-slate-900/80 backdrop-blur-md px-3.5 py-1.5 rounded-xl border border-slate-700 text-[11px] text-slate-300 pointer-events-none flex items-center gap-2">
+          <i class="fa-solid fa-hand-pointer text-indigo-400"></i>
+          <span>Зажмите левую кнопку мыши и вращайте обзор на 360° | Колесико — зум</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
