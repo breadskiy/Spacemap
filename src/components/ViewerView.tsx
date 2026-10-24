@@ -7,18 +7,18 @@ interface ViewerViewProps {
   onBack: () => void
 }
 
-// Категории меток в фирменной эстетике
+// Категории меток
 const POI_CATEGORIES: Record<string, { label: string; color: string; icon: string }> = {
-  stand: { label: 'Экспозиция / Стенд', color: '#e30613', icon: '🏢' },
+  stand: { label: 'Стенд / Экспозиция', color: '#e30613', icon: '🏢' },
   expo: { label: 'Выставка / Арт', color: '#ec4899', icon: '🖼️' },
   cafe: { label: 'Кафе / Кофе', color: '#f59e0b', icon: '☕' },
   food: { label: 'Фудкорт', color: '#f97316', icon: '🍔' },
   shop: { label: 'Магазин / Мерч', color: '#3b82f6', icon: '🛍️' },
-  stage: { label: 'Сцена / Зал', color: '#a855f7', icon: '🎤' },
+  stage: { label: 'Сцена / Зал', color: '#8b5cf6', icon: '🎤' },
   info: { label: 'Инфостойка', color: '#06b6d4', icon: 'ℹ️' },
   exit: { label: 'Вход / Выход', color: '#10b981', icon: '🚪' },
   wc: { label: 'Туалет (WC)', color: '#64748b', icon: '🚻' },
-  atm: { label: 'Банкомат', color: '#14b8a6', icon: '💳' },
+  atm: { label: 'Банкомат', color: '#0d9488', icon: '💳' },
   firstaid: { label: 'Медпункт', color: '#e11d48', icon: '🏥' }
 }
 
@@ -30,19 +30,26 @@ export function ViewerView({ space, onBack }: ViewerViewProps) {
   const [plan, setPlan] = useState<PlanData | null>(null)
   const [activeFloorId, setActiveFloorId] = useState<string>('')
   
-  // Выбранная метка
+  // Выбранная метка для просмотра карточки
   const [selectedPoi, setSelectedPoi] = useState<PlanPoi | null>(null)
 
-  // Точки маршрута А и Б (заглушка)
+  // Пошаговое построение маршрута пользователем:
+  // 'idle' — обычный режим
+  // 'pickA' — пользователь кликает на карте, чтобы поставить точку А
+  // 'pickB' — пользователь кликает на карте, чтобы поставить точку Б
+  const [routingStep, setRoutingStep] = useState<'idle' | 'pickA' | 'pickB'>('idle')
+  const routingStepRef = useRef(routingStep)
+  routingStepRef.current = routingStep
+
+  // Установленные точки А и Б
   const [pointA, setPointA] = useState<{ x: number; y: number; name: string } | null>(null)
   const [pointB, setPointB] = useState<{ x: number; y: number; name: string } | null>(null)
 
-  // Преобразования холста
+  // Преобразования камеры
   const [pan, setPan] = useState<{ x: number; y: number }>({ x: 200, y: 350 })
   const [zoom, setZoom] = useState<number>(1.0)
   const [hoveredPoiId, setHoveredPoiId] = useState<string | null>(null)
 
-  // Ссылки на актуальное состояние для событий мыши
   const panRef = useRef(pan)
   const zoomRef = useRef(zoom)
   panRef.current = pan
@@ -64,31 +71,32 @@ export function ViewerView({ space, onBack }: ViewerViewProps) {
       console.warn('Could not read plan data', e)
     }
 
-    // Если чертежа нет, создаем красивую базовую планировку по умолчанию
+    // Если чертежа нет, создаем красивую планировку по умолчанию
     const defaultFloor: PlanFloor = {
       id: 'floor-1',
       name: '1 этаж',
       level: 1,
       corners: [
         { id: '1', x: 60, y: 60 },
-        { id: '2', x: 540, y: 60 },
-        { id: '3', x: 540, y: 380 },
-        { id: '4', x: 60, y: 380 },
-        { id: '5', x: 280, y: 60 },
-        { id: '6', x: 280, y: 380 }
+        { id: '2', x: 640, y: 60 },
+        { id: '3', x: 640, y: 440 },
+        { id: '4', x: 60, y: 440 },
+        { id: '5', x: 340, y: 60 },
+        { id: '6', x: 340, y: 440 }
       ],
       walls: [
-        { id: 'w1', from: '1', to: '2', length: 480 },
-        { id: 'w2', from: '2', to: '3', length: 320 },
-        { id: 'w3', from: '3', to: '4', length: 480 },
-        { id: 'w4', from: '4', to: '1', length: 320 },
-        { id: 'w5', from: '5', to: '6', length: 320 }
+        { id: 'w1', from: '1', to: '2', length: 580 },
+        { id: 'w2', from: '2', to: '3', length: 380 },
+        { id: 'w3', from: '3', to: '4', length: 580 },
+        { id: 'w4', from: '4', to: '1', length: 380 },
+        { id: 'w5', from: '5', to: '6', length: 380 }
       ],
       pois: [
         { id: 'p1', name: 'Главный вход', category: 'exit', x: 100, y: 80 },
-        { id: 'p2', name: 'Стенд ТТК №1', category: 'stand', x: 180, y: 220 },
-        { id: 'p3', name: 'Кофе-зона', category: 'cafe', x: 420, y: 280 },
-        { id: 'p4', name: 'Главная сцена', category: 'stage', x: 420, y: 140 }
+        { id: 'p2', name: 'Стенд ТТК №1', category: 'stand', x: 200, y: 260 },
+        { id: 'p3', name: 'Кофе-зона', category: 'cafe', x: 480, y: 320 },
+        { id: 'p4', name: 'Главная сцена', category: 'stage', x: 480, y: 150 },
+        { id: 'p5', name: 'Инфостойка', category: 'info', x: 100, y: 260 }
       ]
     }
     setPlan({ floors: [defaultFloor] })
@@ -97,7 +105,7 @@ export function ViewerView({ space, onBack }: ViewerViewProps) {
 
   const currentFloor = plan?.floors.find(f => f.id === activeFloorId) || plan?.floors[0]
 
-  // Центрирование плана при открытии
+  // Центрирование при загрузке
   useEffect(() => {
     if (!currentFloor || !containerRef.current) return
     const container = containerRef.current
@@ -112,8 +120,8 @@ export function ViewerView({ space, onBack }: ViewerViewProps) {
       if (c.y > maxY) maxY = c.y
     })
 
-    const w = maxX - minX || 400
-    const h = maxY - minY || 300
+    const w = maxX - minX || 500
+    const h = maxY - minY || 400
     const availableW = container.clientWidth * 0.75
     const availableH = container.clientHeight * 0.75
 
@@ -140,7 +148,7 @@ export function ViewerView({ space, onBack }: ViewerViewProps) {
     return { x: wx, y: -wy }
   }
 
-  // Отрисовка холста (Светлая карта для посетителей)
+  // Отрисовка холста (Стильный просмотр: чистый фон, БЕЗ ЗАКРАШЕННЫХ ОБЛАСТЕЙ)
   const draw = () => {
     const canvas = canvasRef.current
     if (!canvas) return
@@ -149,45 +157,42 @@ export function ViewerView({ space, onBack }: ViewerViewProps) {
 
     ctx.clearRect(0, 0, canvas.width, canvas.height)
 
-    // Фоновая мягкая текстура сетки в светлом стиле ТТК
+    // 1. Стильный чистый фон
     ctx.save()
     ctx.fillStyle = '#f8fafc'
     ctx.fillRect(0, 0, canvas.width, canvas.height)
 
+    // Тонкие едва заметные архитектурные точки (стиль чертежа / карты пространства)
+    const dotSpacing = 28 * zoomRef.current
+    if (dotSpacing >= 14) {
+      ctx.fillStyle = '#e2e8f0'
+      const startX = panRef.current.x % dotSpacing
+      const startY = panRef.current.y % dotSpacing
+      for (let x = startX; x < canvas.width; x += dotSpacing) {
+        for (let y = startY; y < canvas.height; y += dotSpacing) {
+          ctx.beginPath()
+          ctx.arc(x, y, 1, 0, Math.PI * 2)
+          ctx.fill()
+        }
+      }
+    }
+    ctx.restore()
+
+    ctx.save()
     ctx.translate(panRef.current.x, panRef.current.y)
     ctx.scale(zoomRef.current, zoomRef.current)
 
     if (currentFloor) {
-      // 1. Заливка комнат (замкнутые циклы стен)
       const cornerMap = new Map(currentFloor.corners.map(c => [c.id, c]))
-      
-      // Поиск комнат
-      if (currentFloor.corners.length >= 3 && currentFloor.walls.length >= 3) {
-        ctx.save()
-        ctx.fillStyle = '#ffffff'
-        ctx.strokeStyle = '#e2e8f0'
-        ctx.lineWidth = 1.5 / zoomRef.current
-        ctx.shadowColor = 'rgba(15, 23, 42, 0.04)'
-        ctx.shadowBlur = 12 / zoomRef.current
 
-        // Рисуем многоугольник стен
-        ctx.beginPath()
-        const first = worldToCanvas(currentFloor.corners[0].x, currentFloor.corners[0].y)
-        ctx.moveTo(first.x, first.y)
-        for (let i = 1; i < currentFloor.corners.length; i++) {
-          const pt = worldToCanvas(currentFloor.corners[i].x, currentFloor.corners[i].y)
-          ctx.lineTo(pt.x, pt.y)
-        }
-        ctx.closePath()
-        ctx.fill()
-        ctx.stroke()
-        ctx.restore()
-      }
+      // 2. ВНУТРЕННЯЯ ОБЛАСТЬ НЕ ЗАКРАШИВАЕТСЯ (СТРОГО КАК ПРОСИЛ ПОЛЬЗОВАТЕЛЬ)
+      // Никаких ctx.fill() комнат — только чистые архитектурные стены
 
-      // 2. Стены (аккуратный графит #1e293b без строительных осей)
+      // 3. Архитектурные стены (глубокий стильный графит #0f172a)
+      // Внешняя мягкая тень стен для объема
       ctx.save()
-      ctx.strokeStyle = '#1e293b'
-      ctx.lineWidth = 5 / zoomRef.current
+      ctx.strokeStyle = '#0f172a'
+      ctx.lineWidth = 5.5 / zoomRef.current
       ctx.lineCap = 'round'
       ctx.lineJoin = 'round'
 
@@ -206,7 +211,7 @@ export function ViewerView({ space, onBack }: ViewerViewProps) {
       })
       ctx.restore()
 
-      // 3. Метки (POI)
+      // 4. ВСЕ ТОЧКИ И МЕТКИ (POI) С НАЗВАНИЯМИ И ИКОНКАМИ
       currentFloor.pois.forEach(poi => {
         const pos = worldToCanvas(poi.x, poi.y)
         const isHovered = hoveredPoiId === poi.id
@@ -216,12 +221,12 @@ export function ViewerView({ space, onBack }: ViewerViewProps) {
         ctx.save()
 
         // Тень маркера
-        ctx.shadowColor = 'rgba(15, 23, 42, 0.15)'
-        ctx.shadowBlur = (isHovered || isSelected ? 12 : 6) / zoomRef.current
+        ctx.shadowColor = 'rgba(15, 23, 42, 0.12)'
+        ctx.shadowBlur = (isHovered || isSelected ? 10 : 5) / zoomRef.current
         ctx.shadowOffsetY = 2 / zoomRef.current
 
-        // Круг маркера
-        const r = (isHovered || isSelected ? 12 : 9) / zoomRef.current
+        // Круглый значок точки
+        const r = (isHovered || isSelected ? 12 : 9.5) / zoomRef.current
         ctx.beginPath()
         ctx.arc(pos.x, pos.y, r, 0, Math.PI * 2)
         ctx.fillStyle = cat.color
@@ -236,46 +241,52 @@ export function ViewerView({ space, onBack }: ViewerViewProps) {
         ctx.arc(pos.x, pos.y, 3 / zoomRef.current, 0, Math.PI * 2)
         ctx.fillStyle = '#ffffff'
         ctx.fill()
-
         ctx.restore()
 
-        // Плашка с названием
+        // Плашка с названием (Четкая, стильная, контрастная)
         ctx.save()
         const fontSize = Math.max(10, 11 / zoomRef.current)
         ctx.font = `600 ${fontSize}px sans-serif`
         const text = `${cat.icon} ${poi.name}`
         const textW = ctx.measureText(text).width
-        const badgeH = 18 / zoomRef.current
-        const badgeY = pos.y + (16 / zoomRef.current)
+        const badgeH = 19 / zoomRef.current
+        const badgeY = pos.y + (17 / zoomRef.current)
+        const badgeW = textW + (14 / zoomRef.current)
 
-        ctx.fillStyle = isSelected ? '#111113' : 'rgba(255, 255, 255, 0.95)'
+        // Фон плашки
+        ctx.shadowColor = 'rgba(15, 23, 42, 0.08)'
+        ctx.shadowBlur = 6 / zoomRef.current
+        ctx.shadowOffsetY = 1 / zoomRef.current
+
+        ctx.fillStyle = isSelected ? '#111113' : '#ffffff'
         ctx.strokeStyle = isSelected ? '#111113' : '#e2e8f0'
         ctx.lineWidth = 1 / zoomRef.current
         ctx.beginPath()
-        ctx.roundRect(pos.x - textW / 2 - (6 / zoomRef.current), badgeY - badgeH / 2, textW + (12 / zoomRef.current), badgeH, 6 / zoomRef.current)
+        ctx.roundRect(pos.x - badgeW / 2, badgeY - badgeH / 2, badgeW, badgeH, 6 / zoomRef.current)
         ctx.fill()
         ctx.stroke()
 
-        ctx.fillStyle = isSelected ? '#ffffff' : '#1e293b'
+        // Текст названия
+        ctx.fillStyle = isSelected ? '#ffffff' : '#0f172a'
         ctx.textAlign = 'center'
         ctx.textBaseline = 'middle'
         ctx.fillText(text, pos.x, badgeY)
         ctx.restore()
       })
 
-      // 4. Маркер точки А (зеленый флаг/круг) — БЕЗ ЛИНИЙ И БЕЗ НАДПИСЕЙ
+      // 5. Маркер точки А (зеленый круг со стайлингом) — БЕЗ ЛИНИЙ И БЕЗ ТЕКСТОВ НАД НИМИ
       if (pointA) {
         const posA = worldToCanvas(pointA.x, pointA.y)
         ctx.save()
-        // Внешнее зеленое кольцо
+        // Внешнее пульсирующее кольцо
         ctx.beginPath()
-        ctx.arc(posA.x, posA.y, 16 / zoomRef.current, 0, Math.PI * 2)
-        ctx.fillStyle = 'rgba(16, 185, 129, 0.2)'
+        ctx.arc(posA.x, posA.y, 18 / zoomRef.current, 0, Math.PI * 2)
+        ctx.fillStyle = 'rgba(16, 185, 129, 0.18)'
         ctx.fill()
 
-        // Основной маркер А
+        // Основной круг
         ctx.beginPath()
-        ctx.arc(posA.x, posA.y, 11 / zoomRef.current, 0, Math.PI * 2)
+        ctx.arc(posA.x, posA.y, 12 / zoomRef.current, 0, Math.PI * 2)
         ctx.fillStyle = '#10b981'
         ctx.strokeStyle = '#ffffff'
         ctx.lineWidth = 2.5 / zoomRef.current
@@ -284,26 +295,26 @@ export function ViewerView({ space, onBack }: ViewerViewProps) {
 
         // Буква А внутри
         ctx.fillStyle = '#ffffff'
-        ctx.font = `bold ${Math.max(9, 11 / zoomRef.current)}px sans-serif`
+        ctx.font = `bold ${Math.max(10, 11 / zoomRef.current)}px sans-serif`
         ctx.textAlign = 'center'
         ctx.textBaseline = 'middle'
         ctx.fillText('A', posA.x, posA.y)
         ctx.restore()
       }
 
-      // 5. Маркер точки Б (красный круг ТТК) — БЕЗ ЛИНИЙ И БЕЗ НАДПИСЕЙ
+      // 6. Маркер точки Б (красный круг ТТК) — БЕЗ ЛИНИЙ И БЕЗ ТЕКСТОВ НАД НИМИ
       if (pointB) {
         const posB = worldToCanvas(pointB.x, pointB.y)
         ctx.save()
-        // Внешнее красное кольцо
+        // Внешнее кольцо
         ctx.beginPath()
-        ctx.arc(posB.x, posB.y, 16 / zoomRef.current, 0, Math.PI * 2)
-        ctx.fillStyle = 'rgba(227, 6, 19, 0.2)'
+        ctx.arc(posB.x, posB.y, 18 / zoomRef.current, 0, Math.PI * 2)
+        ctx.fillStyle = 'rgba(227, 6, 19, 0.18)'
         ctx.fill()
 
-        // Основной маркер Б
+        // Основной круг
         ctx.beginPath()
-        ctx.arc(posB.x, posB.y, 11 / zoomRef.current, 0, Math.PI * 2)
+        ctx.arc(posB.x, posB.y, 12 / zoomRef.current, 0, Math.PI * 2)
         ctx.fillStyle = '#e30613'
         ctx.strokeStyle = '#ffffff'
         ctx.lineWidth = 2.5 / zoomRef.current
@@ -312,7 +323,7 @@ export function ViewerView({ space, onBack }: ViewerViewProps) {
 
         // Буква Б внутри
         ctx.fillStyle = '#ffffff'
-        ctx.font = `bold ${Math.max(9, 11 / zoomRef.current)}px sans-serif`
+        ctx.font = `bold ${Math.max(10, 11 / zoomRef.current)}px sans-serif`
         ctx.textAlign = 'center'
         ctx.textBaseline = 'middle'
         ctx.fillText('B', posB.x, posB.y)
@@ -323,7 +334,7 @@ export function ViewerView({ space, onBack }: ViewerViewProps) {
     ctx.restore()
   }
 
-  // Обновление размера canvas
+  // Ресайз холста
   useEffect(() => {
     const handleResize = () => {
       const canvas = canvasRef.current
@@ -343,7 +354,7 @@ export function ViewerView({ space, onBack }: ViewerViewProps) {
     draw()
   }, [pan, zoom, activeFloorId, selectedPoi, pointA, pointB, hoveredPoiId])
 
-  // Обработка кликов и перемещений мыши / тача
+  // Интерактивные клики и перемещение
   useEffect(() => {
     const canvas = canvasRef.current
     if (!canvas) return
@@ -358,16 +369,34 @@ export function ViewerView({ space, onBack }: ViewerViewProps) {
       const sy = e.clientY - rect.top
       const world = screenToWorld(sx, sy)
 
-      // Проверка клика по метке
+      // ПОСТРОЕНИЕ МАРШРУТА ПОЛЬЗОВАТЕЛЕМ (КЛИК НА КАРТЕ):
+      if (routingStepRef.current === 'pickA') {
+        // Проверяем, кликнул ли на существующую метку или в свободное место
+        const clickedPoi = currentFloor?.pois.find(p => Math.hypot(p.x - world.x, p.y - world.y) <= 22 / zoomRef.current)
+        const nameA = clickedPoi ? clickedPoi.name : 'Точка А (Старт)'
+        setPointA({ x: clickedPoi ? clickedPoi.x : Math.round(world.x), y: clickedPoi ? clickedPoi.y : Math.round(world.y), name: nameA })
+        setRoutingStep('pickB') // Переходим ко второму шагу
+        return
+      }
+
+      if (routingStepRef.current === 'pickB') {
+        const clickedPoi = currentFloor?.pois.find(p => Math.hypot(p.x - world.x, p.y - world.y) <= 22 / zoomRef.current)
+        const nameB = clickedPoi ? clickedPoi.name : 'Точка Б (Финиш)'
+        setPointB({ x: clickedPoi ? clickedPoi.x : Math.round(world.x), y: clickedPoi ? clickedPoi.y : Math.round(world.y), name: nameB })
+        setRoutingStep('idle') // Завершили установку точек
+        return
+      }
+
+      // В обычном режиме: клик по метке открывает её карточку
       if (currentFloor) {
-        const clickedPoi = currentFloor.pois.find(p => Math.hypot(p.x - world.x, p.y - world.y) <= 18 / zoomRef.current)
+        const clickedPoi = currentFloor.pois.find(p => Math.hypot(p.x - world.x, p.y - world.y) <= 20 / zoomRef.current)
         if (clickedPoi) {
           setSelectedPoi(clickedPoi)
           return
         }
       }
 
-      // Панорамирование
+      // Свободное панорамирование
       isPanning = true
       panStart = { x: sx - panRef.current.x, y: sy - panRef.current.y }
     }
@@ -385,10 +414,10 @@ export function ViewerView({ space, onBack }: ViewerViewProps) {
         return
       }
 
-      // Подсветка при наведении
+      // Подсветка меток при наведении
       if (currentFloor) {
         const world = screenToWorld(sx, sy)
-        const hovered = currentFloor.pois.find(p => Math.hypot(p.x - world.x, p.y - world.y) <= 18 / zoomRef.current)
+        const hovered = currentFloor.pois.find(p => Math.hypot(p.x - world.x, p.y - world.y) <= 20 / zoomRef.current)
         setHoveredPoiId(hovered ? hovered.id : null)
       }
     }
@@ -414,7 +443,7 @@ export function ViewerView({ space, onBack }: ViewerViewProps) {
       })
     }
 
-    // Touch жесты
+    // Touch жесты для телефонов
     const handleTouchStart = (e: TouchEvent) => {
       if (e.touches.length === 1) {
         const t = e.touches[0]
@@ -423,8 +452,25 @@ export function ViewerView({ space, onBack }: ViewerViewProps) {
         const sy = t.clientY - rect.top
         const world = screenToWorld(sx, sy)
 
+        // Построение маршрута тачем
+        if (routingStepRef.current === 'pickA') {
+          const clickedPoi = currentFloor?.pois.find(p => Math.hypot(p.x - world.x, p.y - world.y) <= 24 / zoomRef.current)
+          const nameA = clickedPoi ? clickedPoi.name : 'Точка А (Старт)'
+          setPointA({ x: clickedPoi ? clickedPoi.x : Math.round(world.x), y: clickedPoi ? clickedPoi.y : Math.round(world.y), name: nameA })
+          setRoutingStep('pickB')
+          return
+        }
+
+        if (routingStepRef.current === 'pickB') {
+          const clickedPoi = currentFloor?.pois.find(p => Math.hypot(p.x - world.x, p.y - world.y) <= 24 / zoomRef.current)
+          const nameB = clickedPoi ? clickedPoi.name : 'Точка Б (Финиш)'
+          setPointB({ x: clickedPoi ? clickedPoi.x : Math.round(world.x), y: clickedPoi ? clickedPoi.y : Math.round(world.y), name: nameB })
+          setRoutingStep('idle')
+          return
+        }
+
         if (currentFloor) {
-          const clickedPoi = currentFloor.pois.find(p => Math.hypot(p.x - world.x, p.y - world.y) <= 22 / zoomRef.current)
+          const clickedPoi = currentFloor.pois.find(p => Math.hypot(p.x - world.x, p.y - world.y) <= 24 / zoomRef.current)
           if (clickedPoi) {
             setSelectedPoi(clickedPoi)
             return
@@ -500,32 +546,27 @@ export function ViewerView({ space, onBack }: ViewerViewProps) {
     }
   }, [currentFloor])
 
-  // Установка точки А
-  const handleSetPointA = (poi: PlanPoi) => {
-    setPointA({ x: poi.x, y: poi.y, name: poi.name })
+  // Начать интерактивную установку маршрута
+  const startRoutePicking = () => {
     setSelectedPoi(null)
-  }
-
-  // Установка точки Б
-  const handleSetPointB = (poi: PlanPoi) => {
-    setPointB({ x: poi.x, y: poi.y, name: poi.name })
-    setSelectedPoi(null)
+    setRoutingStep('pickA')
   }
 
   // Сброс маршрута
   const handleResetRoute = () => {
     setPointA(null)
     setPointB(null)
+    setRoutingStep('idle')
   }
 
   return (
-    <div className="relative flex flex-col h-screen w-screen overflow-hidden bg-[#fafafa] text-[#111113]">
-      {/* 1. Верхняя панель навигации */}
+    <div className="relative flex flex-col h-screen w-screen overflow-hidden bg-[#f8fafc] text-[#111113] select-none">
+      {/* 1. Стильная верхняя шапка просмотра */}
       <header className="h-16 shrink-0 bg-white/95 backdrop-blur-md border-b border-[#e9e9ec] px-4 sm:px-6 flex items-center justify-between z-30 shadow-xs">
         <div className="flex items-center gap-3">
           <button
             onClick={onBack}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-[#e9e9ec] bg-white text-xs font-semibold text-[#111113] hover:border-[#e30613] hover:text-[#e30613] transition"
+            className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full border border-[#e9e9ec] bg-white text-xs font-semibold text-[#111113] hover:border-[#e30613] hover:text-[#e30613] transition shadow-2xs"
           >
             <svg className="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
@@ -536,7 +577,7 @@ export function ViewerView({ space, onBack }: ViewerViewProps) {
           <div className="h-4 w-px bg-[#e9e9ec]" />
 
           <div>
-            <h1 className="text-sm sm:text-base font-bold text-[#111113] truncate max-w-[180px] sm:max-w-md">
+            <h1 className="text-sm sm:text-base font-extrabold text-[#111113] tracking-tight truncate max-w-[170px] sm:max-w-md">
               {space.title}
             </h1>
             <p className="text-[11px] text-[#6b6b70] hidden sm:block">
@@ -565,50 +606,119 @@ export function ViewerView({ space, onBack }: ViewerViewProps) {
         )}
       </header>
 
-      {/* 2. Плавающая панель маршрута (Точки А и Б — без линий, чистые заглушки) */}
+      {/* 2. ПАНЕЛЬ МАРШРУТА: ПОЛЬЗОВАТЕЛЬ САМ СТАВИТ ТОЧКУ А И ТОЧКУ Б */}
       <div className="absolute top-20 left-4 right-4 sm:left-1/2 sm:-translate-x-1/2 sm:max-w-md z-20 pointer-events-auto">
-        <div className="bg-white/95 backdrop-blur-md rounded-2xl border border-[#e9e9ec] p-3 shadow-lg shadow-black/5 flex flex-col gap-2">
-          <div className="flex items-center justify-between text-xs">
-            <span className="font-bold text-[#111113] flex items-center gap-1.5">
-              <span className="size-2 rounded-full bg-[#e30613]" />
-              Маршрут по карте
-            </span>
-            {(pointA || pointB) && (
-              <button
-                onClick={handleResetRoute}
-                className="text-[11px] text-[#6b6b70] hover:text-[#e30613] font-semibold transition"
-              >
-                Сбросить
-              </button>
-            )}
-          </div>
-
-          <div className="grid grid-cols-2 gap-2 text-xs">
-            {/* Точка А */}
-            <div className="flex items-center gap-2 p-2 rounded-xl bg-[#fafafa] border border-[#e9e9ec]">
-              <span className="size-5 rounded-full bg-emerald-500 text-white font-black text-[10px] flex items-center justify-center shrink-0">
+        {/* А. Если режим выбора точки А */}
+        {routingStep === 'pickA' && (
+          <div className="bg-white/95 backdrop-blur-md rounded-2xl border border-emerald-300 p-3.5 shadow-xl flex items-center justify-between gap-3 animate-in fade-in zoom-in-95">
+            <div className="flex items-center gap-2.5">
+              <span className="size-6 rounded-full bg-emerald-500 text-white font-black text-xs flex items-center justify-center shrink-0 animate-pulse">
                 A
               </span>
-              <span className="truncate font-medium text-[#111113]">
-                {pointA ? pointA.name : 'Откуда (А)'}
-              </span>
+              <div>
+                <div className="text-xs font-bold text-[#111113]">Выберите точку А (Старт)</div>
+                <div className="text-[11px] text-[#6b6b70]">Кликните в любое место на плане или на метку</div>
+              </div>
             </div>
+            <button
+              onClick={() => setRoutingStep('idle')}
+              className="text-xs text-[#6b6b70] hover:text-[#111113] px-2 py-1 rounded-lg hover:bg-[#fafafa]"
+            >
+              Отмена
+            </button>
+          </div>
+        )}
 
-            {/* Точка Б */}
-            <div className="flex items-center gap-2 p-2 rounded-xl bg-[#fafafa] border border-[#e9e9ec]">
-              <span className="size-5 rounded-full bg-[#e30613] text-white font-black text-[10px] flex items-center justify-center shrink-0">
+        {/* Б. Если режим выбора точки Б */}
+        {routingStep === 'pickB' && (
+          <div className="bg-white/95 backdrop-blur-md rounded-2xl border border-red-300 p-3.5 shadow-xl flex items-center justify-between gap-3 animate-in fade-in zoom-in-95">
+            <div className="flex items-center gap-2.5">
+              <span className="size-6 rounded-full bg-[#e30613] text-white font-black text-xs flex items-center justify-center shrink-0 animate-pulse">
                 B
               </span>
-              <span className="truncate font-medium text-[#111113]">
-                {pointB ? pointB.name : 'Куда (Б)'}
-              </span>
+              <div>
+                <div className="text-xs font-bold text-[#111113]">Теперь выберите точку Б (Финиш)</div>
+                <div className="text-[11px] text-[#6b6b70]">Кликните в нужное место на плане здания</div>
+              </div>
             </div>
+            <button
+              onClick={() => setRoutingStep('idle')}
+              className="text-xs text-[#6b6b70] hover:text-[#111113] px-2 py-1 rounded-lg hover:bg-[#fafafa]"
+            >
+              Отмена
+            </button>
           </div>
-        </div>
+        )}
+
+        {/* В. Обычное состояние: кнопка «Построить маршрут» или статус уже выбранных точек */}
+        {routingStep === 'idle' && (
+          pointA || pointB ? (
+            <div className="bg-white/95 backdrop-blur-md rounded-2xl border border-[#e9e9ec] p-3 shadow-xl flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2 overflow-hidden text-xs">
+                {/* Точка А */}
+                <div className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-emerald-50 border border-emerald-200 truncate">
+                  <span className="size-4 rounded-full bg-emerald-500 text-white font-black text-[9px] flex items-center justify-center shrink-0">
+                    A
+                  </span>
+                  <span className="font-semibold text-emerald-800 truncate">
+                    {pointA ? pointA.name : 'Не выбрана'}
+                  </span>
+                </div>
+
+                <span className="text-[#9e9ea4]">➔</span>
+
+                {/* Точка Б */}
+                <div className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-red-50 border border-red-200 truncate">
+                  <span className="size-4 rounded-full bg-[#e30613] text-white font-black text-[9px] flex items-center justify-center shrink-0">
+                    B
+                  </span>
+                  <span className="font-semibold text-red-800 truncate">
+                    {pointB ? pointB.name : 'Не выбрана'}
+                  </span>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-1.5 shrink-0">
+                <button
+                  onClick={startRoutePicking}
+                  className="text-xs text-[#111113] hover:text-[#e30613] font-semibold px-2 py-1 rounded-lg hover:bg-[#fafafa] transition"
+                  title="Выбрать точки заново"
+                >
+                  Переставить
+                </button>
+                <button
+                  onClick={handleResetRoute}
+                  className="size-7 rounded-lg text-[#6b6b70] hover:text-red-600 hover:bg-red-50 flex items-center justify-center transition"
+                  title="Сбросить точки"
+                >
+                  ✕
+                </button>
+              </div>
+            </div>
+          ) : (
+            /* Стильная главная кнопка "Построить маршрут" */
+            <div className="flex justify-center">
+              <button
+                onClick={startRoutePicking}
+                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-white/95 backdrop-blur-md border border-[#e9e9ec] text-xs font-bold text-[#111113] hover:border-[#e30613] hover:text-[#e30613] shadow-lg shadow-black/5 transition-all hover:scale-[1.02] active:scale-[0.98]"
+              >
+                <svg className="size-4 text-[#e30613]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
+                </svg>
+                <span>Построить маршрут</span>
+              </button>
+            </div>
+          )
+        )}
       </div>
 
-      {/* 3. Рабочая область холста */}
-      <main ref={containerRef} className="flex-1 w-full h-full relative cursor-grab active:cursor-grabbing">
+      {/* 3. Рабочая область стильного холста */}
+      <main 
+        ref={containerRef} 
+        className={`flex-1 w-full h-full relative ${
+          routingStep !== 'idle' ? 'cursor-crosshair' : 'cursor-grab active:cursor-grabbing'
+        }`}
+      >
         <canvas ref={canvasRef} className="w-full h-full block" />
 
         {/* Кнопки зума справа снизу */}
@@ -670,17 +780,23 @@ export function ViewerView({ space, onBack }: ViewerViewProps) {
               </span>
             </div>
 
-            {/* Кнопки установки точек А и Б */}
+            {/* Кнопки быстрой установки точек А и Б */}
             <div className="grid grid-cols-2 gap-2">
               <button
-                onClick={() => handleSetPointA(selectedPoi)}
+                onClick={() => {
+                  setPointA({ x: selectedPoi.x, y: selectedPoi.y, name: selectedPoi.name })
+                  setSelectedPoi(null)
+                }}
                 className="h-10 rounded-full border border-emerald-300 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 font-bold text-xs flex items-center justify-center gap-1.5 transition"
               >
                 <span>Отсюда (А)</span>
               </button>
 
               <button
-                onClick={() => handleSetPointB(selectedPoi)}
+                onClick={() => {
+                  setPointB({ x: selectedPoi.x, y: selectedPoi.y, name: selectedPoi.name })
+                  setSelectedPoi(null)
+                }}
                 className="h-10 rounded-full bg-[#e30613] text-white hover:bg-[#c40511] font-bold text-xs flex items-center justify-center gap-1.5 transition shadow-sm shadow-[#e30613]/25"
               >
                 <span>Сюда (Б)</span>
