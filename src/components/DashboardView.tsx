@@ -1,19 +1,24 @@
 import type { SpaceObject } from '../types/space'
+import type { UserProfile } from '../types/auth'
 import { deleteSpace } from '../utils/storage'
 
 interface DashboardViewProps {
+  user: UserProfile | null
   spaces: SpaceObject[]
   onOpenCreate: () => void
   onOpenEditor: (space: SpaceObject) => void
   onOpenQR: (space: SpaceObject) => void
+  onOpenAuth: (tab: 'login' | 'register') => void
   onRefresh: () => void
 }
 
 export function DashboardView({
+  user,
   spaces,
   onOpenCreate,
   onOpenEditor,
   onOpenQR,
+  onOpenAuth,
   onRefresh
 }: DashboardViewProps) {
   const handleDelete = (id: string, title: string, e: React.MouseEvent) => {
@@ -26,32 +31,43 @@ export function DashboardView({
 
   return (
     <div className="mx-auto w-full max-w-6xl px-5 py-8 sm:px-8">
-      {/* Шапка кабинета — чистый каркас */}
+      {/* Шапка кабинета / каталога */}
       <div className="flex items-center justify-between border-b border-[#e9e9ec] pb-6">
         <div>
           <h1 className="text-2xl sm:text-3xl font-extrabold text-[#111113]">
-            Личный кабинет
+            {user ? 'Личный кабинет' : 'Мероприятия и планы зданий'}
           </h1>
           <p className="mt-1 text-xs text-[#6b6b70]">
-            Список мероприятий и зданий
+            {user
+              ? 'Управление объектами, редактирование и публикация планов'
+              : 'Просмотр планов навигации мероприятий и пространств'}
           </p>
         </div>
 
-        {/* Средняя кнопка: отображается ТОЛЬКО если список не пуст */}
-        {spaces.length > 0 && (
+        {/* Кнопка создания: отображается ТОЛЬКО для авторизованных пользователей при непустом списке */}
+        {user ? (
+          spaces.length > 0 && (
+            <button
+              onClick={onOpenCreate}
+              className="inline-flex h-9 items-center gap-1.5 rounded-full bg-[#e30613] px-4 text-xs font-semibold text-white hover:bg-[#c40511] transition-colors"
+            >
+              <svg className="size-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.2} d="M12 4v16m8-8H4" />
+              </svg>
+              <span>Создать объект</span>
+            </button>
+          )
+        ) : (
           <button
-            onClick={onOpenCreate}
-            className="inline-flex h-9 items-center gap-1.5 rounded-full bg-[#e30613] px-4 text-xs font-semibold text-white hover:bg-[#c40511] transition-colors"
+            onClick={() => onOpenAuth('login')}
+            className="inline-flex h-9 items-center gap-1.5 rounded-full border border-[#e9e9ec] bg-white px-4 text-xs font-semibold text-[#111113] hover:border-[#e30613] hover:text-[#e30613] transition"
           >
-            <svg className="size-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.2} d="M12 4v16m8-8H4" />
-            </svg>
-            <span>Создать объект</span>
+            <span>Войти как организатор</span>
           </button>
         )}
       </div>
 
-      {/* Если список пуст — сухой чистый скелет */}
+      {/* Если список пуст */}
       {spaces.length === 0 ? (
         <div className="mt-14 flex flex-col items-center justify-center rounded-3xl border border-dashed border-[#e9e9ec] bg-[#fafafa] p-12 text-center max-w-xl mx-auto">
           <div className="size-12 rounded-2xl bg-white border border-[#e9e9ec] text-[#6b6b70] flex items-center justify-center mb-3">
@@ -61,17 +77,28 @@ export function DashboardView({
           </div>
           <h3 className="text-sm font-bold text-[#111113]">Список объектов пуст</h3>
           <p className="mt-1 text-xs text-[#6b6b70]">
-            Создайте первое здание или мероприятие, чтобы перейти к рисованию плана.
+            {user 
+              ? 'Создайте первое здание или мероприятие, чтобы перейти к рисованию плана.' 
+              : 'Организаторы пока не опубликовали планы. Войдите в аккаунт, чтобы добавить свой.'}
           </p>
-          <button
-            onClick={onOpenCreate}
-            className="mt-5 inline-flex h-9 items-center gap-1.5 rounded-full bg-[#e30613] px-4 text-xs font-semibold text-white hover:bg-[#c40511] transition-colors"
-          >
-            <svg className="size-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.2} d="M12 4v16m8-8H4" />
-            </svg>
-            <span>Создать объект</span>
-          </button>
+          {user ? (
+            <button
+              onClick={onOpenCreate}
+              className="mt-5 inline-flex h-9 items-center gap-1.5 rounded-full bg-[#e30613] px-4 text-xs font-semibold text-white hover:bg-[#c40511] transition-colors"
+            >
+              <svg className="size-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.2} d="M12 4v16m8-8H4" />
+              </svg>
+              <span>Создать объект</span>
+            </button>
+          ) : (
+            <button
+              onClick={() => onOpenAuth('login')}
+              className="mt-5 inline-flex h-9 items-center gap-1.5 rounded-full bg-[#e30613] px-4 text-xs font-semibold text-white hover:bg-[#c40511] transition-colors"
+            >
+              <span>Войти или зарегистрироваться</span>
+            </button>
+          )}
         </div>
       ) : (
         /* Список созданных пользователем объектов */
@@ -120,6 +147,7 @@ export function DashboardView({
                   </span>
 
                   <div className="flex items-center gap-1">
+                    {/* Кнопка ссылки и QR-кода */}
                     {isPublished && (
                       <button
                         type="button"
@@ -136,16 +164,19 @@ export function DashboardView({
                       </button>
                     )}
 
-                    <button
-                      type="button"
-                      onClick={e => handleDelete(space.id, space.title, e)}
-                      title="Удалить"
-                      className="p-1.5 rounded-lg text-[#6b6b70] hover:text-red-600 transition-colors"
-                    >
-                      <svg className="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                      </svg>
-                    </button>
+                    {/* Удаление доступно только организаторам */}
+                    {user && (
+                      <button
+                        type="button"
+                        onClick={e => handleDelete(space.id, space.title, e)}
+                        title="Удалить"
+                        className="p-1.5 rounded-lg text-[#6b6b70] hover:text-red-600 transition-colors"
+                      >
+                        <svg className="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                        </svg>
+                      </button>
+                    )}
                   </div>
                 </div>
               </div>

@@ -1,12 +1,15 @@
 import { useState, useEffect } from 'react'
 import type { SpaceObject } from './types/space'
-import { getSpaces } from './utils/storage'
+import type { UserProfile } from './types/auth'
+import { getSpaces, getStoredUser, saveStoredUser } from './utils/storage'
 import { Navbar } from './components/Navbar'
 import { LandingView } from './components/LandingView'
 import { DashboardView } from './components/DashboardView'
 import { EditorView } from './components/EditorView'
 import { CreateSpaceModal } from './components/CreateSpaceModal'
 import { QRCodeModal } from './components/QRCodeModal'
+import { AuthModal } from './components/AuthModal'
+import { ProfileSettingsModal } from './components/ProfileSettingsModal'
 
 export default function App() {
   const [currentTab, setCurrentTab] = useState<'landing' | 'dashboard' | 'editor'>('landing')
@@ -19,6 +22,14 @@ export default function App() {
     url: ''
   })
 
+  // Авторизация пользователя
+  const [user, setUser] = useState<UserProfile | null>(() => getStoredUser())
+  const [authModal, setAuthModal] = useState<{ isOpen: boolean; tab: 'login' | 'register' }>({
+    isOpen: false,
+    tab: 'login'
+  })
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false)
+
   const loadSpaces = () => {
     const list = getSpaces()
     setSpaces(list)
@@ -27,6 +38,25 @@ export default function App() {
   useEffect(() => {
     loadSpaces()
   }, [])
+
+  const handleOpenAuth = (tab: 'login' | 'register') => {
+    setAuthModal({ isOpen: true, tab })
+  }
+
+  const handleLoginSuccess = (newUser: UserProfile) => {
+    setUser(newUser)
+    saveStoredUser(newUser)
+  }
+
+  const handleLogout = () => {
+    setUser(null)
+    saveStoredUser(null)
+  }
+
+  const handleUpdateUser = (updated: UserProfile) => {
+    setUser(updated)
+    saveStoredUser(updated)
+  }
 
   const handleOpenEditor = (space: SpaceObject) => {
     setSelectedSpace(space)
@@ -74,24 +104,61 @@ export default function App() {
       <Navbar
         currentTab={currentTab}
         onNavigate={tab => setCurrentTab(tab)}
+        user={user}
+        onOpenAuth={handleOpenAuth}
+        onOpenSettings={() => setIsSettingsOpen(true)}
+        onLogout={handleLogout}
       />
 
       {/* Основной контент */}
       <main className="flex-1">
         {currentTab === 'landing' ? (
           <LandingView
-            onOpenCreate={() => setIsCreateOpen(true)}
+            user={user}
+            onOpenCreate={() => {
+              if (user) {
+                setIsCreateOpen(true)
+              } else {
+                handleOpenAuth('register')
+              }
+            }}
+            onNavigateToDashboard={() => setCurrentTab('dashboard')}
           />
         ) : (
           <DashboardView
+            user={user}
             spaces={spaces}
-            onOpenCreate={() => setIsCreateOpen(true)}
+            onOpenCreate={() => {
+              if (user) {
+                setIsCreateOpen(true)
+              } else {
+                handleOpenAuth('login')
+              }
+            }}
             onOpenEditor={handleOpenEditor}
             onOpenQR={handleOpenQR}
+            onOpenAuth={handleOpenAuth}
             onRefresh={loadSpaces}
           />
         )}
       </main>
+
+      {/* Модальное окно авторизации (Вход / Регистрация) */}
+      <AuthModal
+        isOpen={authModal.isOpen}
+        initialTab={authModal.tab}
+        onClose={() => setAuthModal(prev => ({ ...prev, isOpen: false }))}
+        onSuccess={handleLoginSuccess}
+      />
+
+      {/* Модальное окно настроек профиля */}
+      <ProfileSettingsModal
+        isOpen={isSettingsOpen}
+        user={user}
+        onClose={() => setIsSettingsOpen(false)}
+        onUpdate={handleUpdateUser}
+        onLogout={handleLogout}
+      />
 
       {/* Модальное окно создания объекта */}
       <CreateSpaceModal

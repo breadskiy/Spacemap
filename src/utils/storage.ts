@@ -1,6 +1,30 @@
 import type { SpaceObject, SpaceCategory } from '../types/space'
+import type { UserProfile } from '../types/auth'
 
 const STORAGE_KEY = 'spacemap_venues_v2'
+const USER_STORAGE_KEY = 'spacemap_user_auth'
+
+export function getStoredUser(): UserProfile | null {
+  try {
+    const raw = localStorage.getItem(USER_STORAGE_KEY)
+    return raw ? JSON.parse(raw) : null
+  } catch (e) {
+    console.error('Error reading user from localStorage', e)
+    return null
+  }
+}
+
+export function saveStoredUser(user: UserProfile | null): void {
+  try {
+    if (user) {
+      localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(user))
+    } else {
+      localStorage.removeItem(USER_STORAGE_KEY)
+    }
+  } catch (e) {
+    console.error('Error saving user to localStorage', e)
+  }
+}
 
 export const CATEGORY_LABELS: Record<SpaceCategory, string> = {
   exhibition: 'Выставка',
