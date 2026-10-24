@@ -1870,7 +1870,6 @@ const tabButtons = {
   corners: document.getElementById('tab-btn-corners'),
   walls: document.getElementById('tab-btn-walls'),
   rooms: document.getElementById('tab-btn-rooms'),
-  pois: document.getElementById('tab-btn-pois'),
   panos: document.getElementById('tab-btn-panos')
 };
 
@@ -1879,24 +1878,29 @@ const tabContents = {
   corners: document.getElementById('tab-content-corners'),
   walls: document.getElementById('tab-content-walls'),
   rooms: document.getElementById('tab-content-rooms'),
-  pois: document.getElementById('tab-content-pois'),
   panos: document.getElementById('tab-content-panos')
 };
 
 function switchSidebarTab(tabName) {
   Object.keys(tabButtons).forEach(name => {
+    const btn = tabButtons[name];
+    const content = tabContents[name];
+    if (!btn || !content) return;
     if (name === tabName) {
-      tabButtons[name].className = 'sidebar-tab flex-1 py-1.5 px-2 rounded-lg font-semibold flex items-center justify-center gap-1.5 bg-slate-800 text-white shadow-sm border border-slate-700';
-      tabContents[name].classList.remove('hidden');
+      btn.className = 'sidebar-tab py-1.5 px-1 rounded-lg font-semibold flex items-center justify-center gap-1 bg-slate-800 text-white shadow-sm border border-slate-700';
+      content.classList.remove('hidden');
     } else {
-      tabButtons[name].className = 'sidebar-tab flex-1 py-1.5 px-2 rounded-lg font-medium flex items-center justify-center gap-1.5 text-slate-400 hover:text-white hover:bg-slate-800/50 transition';
-      tabContents[name].classList.add('hidden');
+      btn.className = 'sidebar-tab py-1.5 px-1 rounded-lg font-medium flex items-center justify-center gap-1 text-slate-400 hover:text-white hover:bg-slate-800/50 transition';
+      content.classList.add('hidden');
     }
   });
 }
 
 Object.keys(tabButtons).forEach(name => {
-  tabButtons[name].addEventListener('click', () => switchSidebarTab(name));
+  const btn = tabButtons[name];
+  if (btn) {
+    btn.addEventListener('click', () => switchSidebarTab(name));
+  }
 });
 
 function renderFloorsList() {
@@ -3458,7 +3462,25 @@ function exportToJSON() {
   }, null, 2);
 }
 
+// Быстрое сохранение плана прямо в проект SpaceMap
+const btnSavePlanQuick = document.getElementById('btn-save-plan-quick');
+if (btnSavePlanQuick) {
+  btnSavePlanQuick.addEventListener('click', () => {
+    saveDraftToStorage(true);
+    const prevHtml = btnSavePlanQuick.innerHTML;
+    btnSavePlanQuick.innerHTML = '<i class="fa-solid fa-check"></i> <span>Сохранено!</span>';
+    btnSavePlanQuick.classList.remove('bg-emerald-600', 'hover:bg-emerald-500');
+    btnSavePlanQuick.classList.add('bg-emerald-700');
+    setTimeout(() => {
+      btnSavePlanQuick.innerHTML = prevHtml;
+      btnSavePlanQuick.classList.add('bg-emerald-600', 'hover:bg-emerald-500');
+      btnSavePlanQuick.classList.remove('bg-emerald-700');
+    }, 1600);
+  });
+}
+
 document.getElementById('btn-export-json').addEventListener('click', () => {
+  saveDraftToStorage(true);
   const jsonStr = exportToJSON();
 
   // 1. Отправляем готовый JSON на родительский сайт (Человеку 4) через postMessage
@@ -3569,17 +3591,61 @@ document.getElementById('btn-apply-json').addEventListener('click', () => {
 // -------------------------------------------------------------
 // АВТОСОХРАНЕНИЕ И ВОССТАНОВЛЕНИЕ ЧЕРНОВИКА (LOCALSTORAGE)
 // -------------------------------------------------------------
+// Получение spaceId из адресной строки iframe (?spaceId=...)
+const urlParams = new URLSearchParams(window.location.search);
+const currentSpaceId = urlParams.get('spaceId') || '';
+const storagePlanKey = currentSpaceId ? ('spacemap_plan_' + currentSpaceId) : 'ttk_floor_plan_draft';
+
 function saveDraftToStorage() {
   try {
-    localStorage.setItem('ttk_floor_plan_draft', exportToJSON());
+    const jsonStr = exportToJSON();
+    if (storagePlanKey) {
+      localStorage.setItem(storagePlanKey, jsonStr);
+    }
+    localStorage.setItem('ttk_floor_plan_draft', jsonStr);
+
+    // Обновляем счетчик стен в карточке объекта
+    if (currentSpaceId) {
+      try {
+        const spacesRaw = localStorage.getItem('spacemap_venues_v2');
+        if (spacesRaw) {
+          const spaces = JSON.parse(spacesRaw);
+          const sp = spaces.find(s => s.id === currentSpaceId);
+          if (sp) {
+            const floor = getCurrentFloor();
+            sp.wallsCount = floor && floor.walls ? floor.walls.length : 0;
+            sp.updatedAt = new Date().toLocaleString('ru-RU', {
+              day: '2-digit', month: '2-digit', year: 'numeric',
+              hour: '2-digit', minute: '2-digit'
+            });
+            localStorage.setItem('spacemap_venues_v2', JSON.stringify(spaces));
+          }
+        }
+      } catch (_) {}
+    }
+
+    // Оповещаем родительское окно SpaceMap (React)
+    if (window.parent && window.parent !== window) {
+      window.parent.postMessage({
+        type: 'SPACEMAP_PLAN_SAVED',
+        spaceId: currentSpaceId,
+        plan: JSON.parse(jsonStr)
+      }, '*');
+    }
   } catch (err) {
-    // Игнорируем квоту LocalStorage
+    console.warn('[Editor] Ошибка автосохранения плана:', err);
   }
 }
 
 function loadDraftFromStorage() {
   try {
-    const saved = localStorage.getItem('ttk_floor_plan_draft');
+    let saved = null;
+    if (storagePlanKey) {
+      saved = localStorage.getItem(storagePlanKey);
+    }
+    if (!saved && !currentSpaceId) {
+      saved = localStorage.getItem('ttk_floor_plan_draft');
+    }
     if (saved) {
       const data = JSON.parse(saved);
       if (data && Array.isArray(data.floors) && data.floors.length > 0) {
@@ -3591,13 +3657,13 @@ function loadDraftFromStorage() {
         );
         if (hasContent) {
           loadJSONData(data);
-          console.log('[Editor] Черновик успешно восстановлен из LocalStorage!');
+          console.log('[Editor] План для объекта ' + currentSpaceId + ' успешно загружен!');
           return true;
         }
       }
     }
   } catch (err) {
-    console.warn('[Editor] Ошибка чтения LocalStorage:', err);
+    console.warn('[Editor] Ошибка чтения плана из LocalStorage:', err);
   }
   return false;
 }
@@ -3638,34 +3704,36 @@ render();
 
   if (btnToggleSidebar && editorSidebar) {
     let isSidebarCollapsed = false;
-    btnToggleSidebar.addEventListener('click', (e) => {
+    btnToggleSidebar.onclick = (e) => {
+      e.preventDefault();
       e.stopPropagation();
       isSidebarCollapsed = !isSidebarCollapsed;
       if (isSidebarCollapsed) {
         editorSidebar.style.width = '0px';
         editorSidebar.style.minWidth = '0px';
-        editorSidebar.style.padding = '0px';
+        editorSidebar.style.maxWidth = '0px';
         editorSidebar.style.overflow = 'hidden';
         editorSidebar.style.borderRight = 'none';
-        btnToggleSidebar.style.right = '-28px';
+        btnToggleSidebar.style.left = '10px';
         if (sidebarToggleIcon) {
           sidebarToggleIcon.className = 'fa-solid fa-chevron-right text-[10px]';
         }
         btnToggleSidebar.title = 'Развернуть панель';
       } else {
-        editorSidebar.style.width = '';
-        editorSidebar.style.minWidth = '';
-        editorSidebar.style.padding = '';
+        editorSidebar.style.width = '320px';
+        editorSidebar.style.minWidth = '320px';
+        editorSidebar.style.maxWidth = '320px';
         editorSidebar.style.overflow = '';
         editorSidebar.style.borderRight = '';
-        btnToggleSidebar.style.right = '-14px';
+        btnToggleSidebar.style.left = '308px';
         if (sidebarToggleIcon) {
           sidebarToggleIcon.className = 'fa-solid fa-chevron-left text-[10px]';
         }
         btnToggleSidebar.title = 'Свернуть панель';
       }
-      setTimeout(resizeCanvas, 100);
-    });
+      setTimeout(resizeCanvas, 50);
+      setTimeout(resizeCanvas, 320);
+    };
   }
 
   // 2. Вкладки режимов панорамы (Одиночная 360° / Сшивка из двух 180°)

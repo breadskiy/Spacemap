@@ -61,13 +61,30 @@ export function AuthModal({
       return
     }
 
-    // Создаем объект пользователя
-    const user: UserProfile = {
-      id: `usr-${Date.now()}`,
-      name: tab === 'register' ? name.trim() : (cleanEmail.split('@')[0] || 'Организатор'),
-      email: cleanEmail,
-      organization: organization.trim() || 'ТрансТелеКом / ТТК',
-      role: 'Организатор пространства'
+    // Сохраняем и получаем профиль из реестра пользователей
+    const usersKey = 'spacemap_registered_users_db'
+    let usersList: UserProfile[] = []
+    try {
+      const raw = localStorage.getItem(usersKey)
+      if (raw) usersList = JSON.parse(raw)
+    } catch (_) {}
+
+    let user = usersList.find(u => u.email.toLowerCase() === cleanEmail.toLowerCase())
+    if (!user) {
+      const stableId = 'usr_' + Math.abs(cleanEmail.split('').reduce((acc, c) => ((acc << 5) - acc) + c.charCodeAt(0), 0))
+      user = {
+        id: stableId,
+        name: tab === 'register' ? (name.trim() || cleanEmail.split('@')[0]) : (cleanEmail.split('@')[0] || 'Организатор'),
+        email: cleanEmail,
+        organization: organization.trim() || 'ТрансТелеКом / ТТК',
+        role: 'Организатор пространства'
+      }
+      usersList.push(user)
+      localStorage.setItem(usersKey, JSON.stringify(usersList))
+    } else if (tab === 'register' && name.trim()) {
+      user.name = name.trim()
+      if (organization.trim()) user.organization = organization.trim()
+      localStorage.setItem(usersKey, JSON.stringify(usersList))
     }
 
     onSuccess(user)

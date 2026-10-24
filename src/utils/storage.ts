@@ -69,10 +69,12 @@ export function createSpace(data: {
   category: SpaceCategory
   address: string
   description: string
+  userId?: string
 }): SpaceObject {
   const spaces = getSpaces()
   const newSpace: SpaceObject = {
     id: `space-${Date.now()}`,
+    userId: data.userId,
     title: data.title.trim(),
     category: data.category,
     categoryLabel: CATEGORY_LABELS[data.category],

@@ -6,9 +6,10 @@ interface CreateSpaceModalProps {
   isOpen: boolean
   onClose: () => void
   onCreated: (newSpace: SpaceObject) => void
+  userId?: string
 }
 
-export function CreateSpaceModal({ isOpen, onClose, onCreated }: CreateSpaceModalProps) {
+export function CreateSpaceModal({ isOpen, onClose, onCreated, userId }: CreateSpaceModalProps) {
   const [title, setTitle] = useState('')
   const [category, setCategory] = useState<SpaceCategory>('conference')
   const [address, setAddress] = useState('')
@@ -28,7 +29,8 @@ export function CreateSpaceModal({ isOpen, onClose, onCreated }: CreateSpaceModa
       title,
       category,
       address,
-      description
+      description,
+      userId
     })
 
     // Сброс и возврат

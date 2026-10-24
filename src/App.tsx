@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import type { SpaceObject } from './types/space'
 import type { UserProfile } from './types/auth'
-import { getSpaces, getStoredUser, saveStoredUser } from './utils/storage'
+import { getSpaces, saveSpaces, getStoredUser, saveStoredUser } from './utils/storage'
 import { Navbar } from './components/Navbar'
 import { LandingView } from './components/LandingView'
 import { DashboardView } from './components/DashboardView'
@@ -33,6 +33,13 @@ export default function App() {
 
   const loadSpaces = () => {
     const list = getSpaces()
+    // Привязываем старые тестовые проекты без владельца к текущему вошедшему пользователю
+    if (user && list.some(s => !s.userId)) {
+      const updated = list.map(s => !s.userId ? { ...s, userId: user.id } : s)
+      saveSpaces(updated)
+      setSpaces(updated)
+      return updated
+    }
     setSpaces(list)
     return list
   }
@@ -197,6 +204,7 @@ export default function App() {
         isOpen={isCreateOpen}
         onClose={() => setIsCreateOpen(false)}
         onCreated={handleCreated}
+        userId={user?.id}
       />
 
       {/* Модальное окно QR-кода */}

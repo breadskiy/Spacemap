@@ -2,6 +2,7 @@ export type SpaceCategory = 'exhibition' | 'conference' | 'office' | 'mall' | 'o
 
 export interface SpaceObject {
   id: string
+  userId?: string // ID владельца-организатора
   title: string
   category: SpaceCategory
   categoryLabel: string

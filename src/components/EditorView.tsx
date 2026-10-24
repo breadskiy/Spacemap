@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import type { SpaceObject } from '../types/space'
 import { publishSpace } from '../utils/storage'
 import { QRCodeModal } from './QRCodeModal'
@@ -12,6 +12,21 @@ interface EditorViewProps {
 export function EditorView({ space, onBack, onUpdateSpace }: EditorViewProps) {
   const [isQrOpen, setIsQrOpen] = useState(false)
   const [currentSpace, setCurrentSpace] = useState<SpaceObject>(space)
+
+  // Синхронизация данных при сохранении в iframe редактора
+  useEffect(() => {
+    const handleMsg = (e: MessageEvent) => {
+      if (e.data && (e.data.type === 'SPACEMAP_PLAN_SAVED' || e.data.type === 'PLAN_SAVED')) {
+        const floor = e.data.plan?.floors?.[0]
+        const wallsCount = floor?.walls?.length ?? currentSpace.wallsCount
+        const updated = { ...currentSpace, wallsCount }
+        setCurrentSpace(updated)
+        onUpdateSpace(updated)
+      }
+    }
+    window.addEventListener('message', handleMsg)
+    return () => window.removeEventListener('message', handleMsg)
+  }, [currentSpace, onUpdateSpace])
 
   const handlePublish = () => {
     const updated = publishSpace(currentSpace.id)

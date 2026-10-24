@@ -67,39 +67,30 @@ export function ViewerView({ space, onBack }: ViewerViewProps) {
           return
         }
       }
+      // Резервная проверка общего черновика
+      const draft = localStorage.getItem('ttk_floor_plan_draft')
+      if (draft) {
+        const parsed: PlanData = JSON.parse(draft)
+        if (parsed.floors && parsed.floors.length > 0 && parsed.floors.some(f => (f.walls && f.walls.length > 0))) {
+          setPlan(parsed)
+          setActiveFloorId(parsed.floors[0].id)
+          return
+        }
+      }
     } catch (e) {
       console.warn('Could not read plan data', e)
     }
 
-    // Если чертежа нет, создаем красивую планировку по умолчанию
-    const defaultFloor: PlanFloor = {
+    // Если чертежа еще нет, инициализируем пустой этаж (без фейковых заглушек)
+    const emptyFloor: PlanFloor = {
       id: 'floor-1',
       name: '1 этаж',
       level: 1,
-      corners: [
-        { id: '1', x: 60, y: 60 },
-        { id: '2', x: 640, y: 60 },
-        { id: '3', x: 640, y: 440 },
-        { id: '4', x: 60, y: 440 },
-        { id: '5', x: 340, y: 60 },
-        { id: '6', x: 340, y: 440 }
-      ],
-      walls: [
-        { id: 'w1', from: '1', to: '2', length: 580 },
-        { id: 'w2', from: '2', to: '3', length: 380 },
-        { id: 'w3', from: '3', to: '4', length: 580 },
-        { id: 'w4', from: '4', to: '1', length: 380 },
-        { id: 'w5', from: '5', to: '6', length: 380 }
-      ],
-      pois: [
-        { id: 'p1', name: 'Главный вход', category: 'exit', x: 100, y: 80 },
-        { id: 'p2', name: 'Стенд ТТК №1', category: 'stand', x: 200, y: 260 },
-        { id: 'p3', name: 'Кофе-зона', category: 'cafe', x: 480, y: 320 },
-        { id: 'p4', name: 'Главная сцена', category: 'stage', x: 480, y: 150 },
-        { id: 'p5', name: 'Инфостойка', category: 'info', x: 100, y: 260 }
-      ]
+      corners: [],
+      walls: [],
+      pois: []
     }
-    setPlan({ floors: [defaultFloor] })
+    setPlan({ floors: [emptyFloor] })
     setActiveFloorId('floor-1')
   }, [space.id])
 
@@ -253,35 +244,37 @@ export function ViewerView({ space, onBack }: ViewerViewProps) {
         ctx.fill()
         ctx.restore()
 
-        // Плашка с названием (Четкая, стильная, контрастная)
-        ctx.save()
-        const fontSize = Math.max(10, 11 / zoomRef.current)
-        ctx.font = `600 ${fontSize}px sans-serif`
-        const text = `${cat.icon} ${poi.name}`
-        const textW = ctx.measureText(text).width
-        const badgeH = 19 / zoomRef.current
-        const badgeY = pos.y + (17 / zoomRef.current)
-        const badgeW = textW + (14 / zoomRef.current)
+        // Плашка с названием POI показывается ТОЛЬКО при наведении или выборе
+        if (isHovered || isSelected) {
+          ctx.save()
+          const fontSize = Math.max(10, 11 / zoomRef.current)
+          ctx.font = `600 ${fontSize}px sans-serif`
+          const text = `${cat.icon} ${poi.name}`
+          const textW = ctx.measureText(text).width
+          const badgeH = 19 / zoomRef.current
+          const badgeY = pos.y + (17 / zoomRef.current)
+          const badgeW = textW + (14 / zoomRef.current)
 
-        // Фон плашки
-        ctx.shadowColor = 'rgba(15, 23, 42, 0.08)'
-        ctx.shadowBlur = 6 / zoomRef.current
-        ctx.shadowOffsetY = 1 / zoomRef.current
+          // Фон плашки
+          ctx.shadowColor = 'rgba(15, 23, 42, 0.08)'
+          ctx.shadowBlur = 6 / zoomRef.current
+          ctx.shadowOffsetY = 1 / zoomRef.current
 
-        ctx.fillStyle = isSelected ? '#111113' : '#ffffff'
-        ctx.strokeStyle = isSelected ? '#111113' : '#e2e8f0'
-        ctx.lineWidth = 1 / zoomRef.current
-        ctx.beginPath()
-        ctx.roundRect(pos.x - badgeW / 2, badgeY - badgeH / 2, badgeW, badgeH, 6 / zoomRef.current)
-        ctx.fill()
-        ctx.stroke()
+          ctx.fillStyle = isSelected ? '#111113' : '#ffffff'
+          ctx.strokeStyle = isSelected ? '#111113' : '#e2e8f0'
+          ctx.lineWidth = 1 / zoomRef.current
+          ctx.beginPath()
+          ctx.roundRect(pos.x - badgeW / 2, badgeY - badgeH / 2, badgeW, badgeH, 6 / zoomRef.current)
+          ctx.fill()
+          ctx.stroke()
 
-        // Текст названия
-        ctx.fillStyle = isSelected ? '#ffffff' : '#0f172a'
-        ctx.textAlign = 'center'
-        ctx.textBaseline = 'middle'
-        ctx.fillText(text, pos.x, badgeY)
-        ctx.restore()
+          // Текст названия
+          ctx.fillStyle = isSelected ? '#ffffff' : '#0f172a'
+          ctx.textAlign = 'center'
+          ctx.textBaseline = 'middle'
+          ctx.fillText(text, pos.x, badgeY)
+          ctx.restore()
+        }
       })
 
       // 5. Маркер точки А (зеленый круг со стайлингом) — БЕЗ ЛИНИЙ И БЕЗ ТЕКСТОВ НАД НИМИ

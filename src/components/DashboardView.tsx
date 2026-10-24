@@ -34,8 +34,18 @@ export function DashboardView({
     }
   }
 
+  // Свои пространства текущего пользователя (строгая изоляция по userId)
+  const mySpaces = user ? spaces.filter(s => s.userId === user.id) : []
+  // Все мероприятия: опубликованные + собственные объекты организатора
+  const allSpaces = spaces.filter(s => s.status === 'published' || (user && s.userId === user.id))
+
+  // Текущий список для выбранной вкладки
+  const currentList = !user 
+    ? spaces.filter(s => s.status === 'published')
+    : (activeTab === 'my' ? mySpaces : allSpaces)
+
   // Фильтрация по поиску
-  const displaySpaces = spaces.filter(space => {
+  const displaySpaces = currentList.filter(space => {
     if (!searchQuery.trim()) return true
     const q = searchQuery.toLowerCase()
     return (
@@ -86,7 +96,7 @@ export function DashboardView({
                   : 'text-[#6b6b70] hover:text-[#111113]'
               }`}
             >
-              Мои карты ({spaces.length})
+              Мои карты ({mySpaces.length})
             </button>
             <button
               onClick={() => setActiveTab('all')}
@@ -96,7 +106,7 @@ export function DashboardView({
                   : 'text-[#6b6b70] hover:text-[#111113]'
               }`}
             >
-              Все мероприятия ({spaces.length})
+              Все мероприятия ({allSpaces.length})
             </button>
           </div>
 
@@ -133,20 +143,24 @@ export function DashboardView({
       )}
 
       {/* Если список пуст */}
-      {spaces.length === 0 ? (
+      {currentList.length === 0 ? (
         <div className="mt-14 flex flex-col items-center justify-center rounded-3xl border border-dashed border-[#e9e9ec] bg-[#fafafa] p-12 text-center max-w-xl mx-auto">
           <div className="size-12 rounded-2xl bg-white border border-[#e9e9ec] text-[#6b6b70] flex items-center justify-center mb-3">
             <svg className="size-6 text-[#6b6b70]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
             </svg>
           </div>
-          <h3 className="text-sm font-bold text-[#111113]">Список объектов пуст</h3>
+          <h3 className="text-sm font-bold text-[#111113]">
+            {user && activeTab === 'my' ? 'У вас пока нет созданных объектов' : 'Список объектов пуст'}
+          </h3>
           <p className="mt-1 text-xs text-[#6b6b70]">
-            {user 
-              ? 'Создайте первое здание или мероприятие, чтобы перейти к рисованию плана.' 
+            {user && activeTab === 'my'
+              ? 'Нажмите «Создать объект», чтобы добавить ваше первое пространство и нарисовать план.'
+              : user
+              ? 'В каталоге пока нет опубликованных мероприятий.'
               : 'Организаторы пока не опубликовали планы помещений.'}
           </p>
-          {user && (
+          {user && activeTab === 'my' && (
             <button
               onClick={onOpenCreate}
               className="mt-5 inline-flex h-9 items-center gap-1.5 rounded-full bg-[#e30613] px-4 text-xs font-semibold text-white hover:bg-[#c40511] transition-colors"
@@ -167,17 +181,17 @@ export function DashboardView({
         <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {displaySpaces.map(space => {
             const isPublished = space.status === 'published'
-            const isMyMode = user && activeTab === 'my'
+            const isOwner = Boolean(user && space.userId === user.id)
 
             return (
               <div
                 key={space.id}
                 onClick={() => {
-                  // Для гостей или в режиме "Все мероприятия" клик открывает просмотр!
-                  if (!isMyMode) {
-                    onOpenViewer(space)
-                  } else {
+                  // Для владельца во вкладке "Мои карты" клик открывает редактор, иначе — просмотр
+                  if (isOwner && activeTab === 'my') {
                     onOpenEditor(space)
+                  } else {
+                    onOpenViewer(space)
                   }
                 }}
                 className="group flex flex-col justify-between rounded-2xl border border-[#e9e9ec] bg-white p-5 transition-all hover:border-[#e30613]/50 cursor-pointer shadow-xs hover:shadow-md"
@@ -230,8 +244,8 @@ export function DashboardView({
                       <span>Смотреть</span>
                     </button>
 
-                    {/* Дополнительные действия для владельца в режиме "Мои карты" */}
-                    {isMyMode && (
+                    {/* Дополнительные действия управления ТОЛЬКО ДЛЯ ВЛАДЕЛЬЦА */}
+                    {isOwner && (
                       <>
                         <button
                           type="button"

@@ -62,9 +62,14 @@
         <input type="file" id="json-file-input" accept=".json" class="hidden">
       </label>
 
-      <button id="btn-export-json" class="bg-red-600 hover:bg-red-500 text-white px-3 py-2 rounded-lg text-xs font-semibold flex items-center gap-2 transition shadow shadow-red-600/30">
-        <i class="fa-solid fa-download"></i>
-        <span>Сохранить JSON</span>
+      <button id="btn-save-plan-quick" class="bg-emerald-600 hover:bg-emerald-500 text-white px-3.5 py-2 rounded-lg text-xs font-bold flex items-center gap-2 transition shadow shadow-emerald-600/30 cursor-pointer" title="Сохранить план помещения в проект">
+        <i class="fa-solid fa-floppy-disk"></i>
+        <span>Сохранить проект</span>
+      </button>
+
+      <button id="btn-export-json" class="bg-slate-700 hover:bg-slate-600 text-slate-200 px-3 py-2 rounded-lg text-xs font-semibold flex items-center gap-2 transition border border-slate-600" title="Скачать файл JSON на диск">
+        <i class="fa-solid fa-download text-emerald-400"></i>
+        <span>Экспорт JSON</span>
       </button>
 
       <button id="btn-view-json" class="bg-slate-700 hover:bg-slate-600 text-slate-300 px-3 py-2 rounded-lg text-xs font-medium flex items-center gap-2 transition border border-slate-600" title="Посмотреть код">
@@ -78,15 +83,11 @@
   <div class="flex-1 flex overflow-hidden relative">
     
     <!-- Левая панель: Этажи, Вершины и Стены -->
-    <aside id="editor-sidebar" class="w-80 bg-slate-800/95 border-r border-slate-700 flex flex-col z-10 shadow-lg text-slate-200 transition-all duration-300 relative">
-      <!-- Кнопка сворачивания панели -->
-      <button id="btn-toggle-sidebar" class="absolute -right-3.5 top-3 z-30 w-7 h-7 rounded-full bg-slate-800 border border-slate-600 text-slate-300 hover:text-white hover:bg-slate-700 shadow-md flex items-center justify-center text-xs transition cursor-pointer" title="Свернуть панель">
-        <i class="fa-solid fa-chevron-left text-[10px]" id="sidebar-toggle-icon"></i>
-      </button>
+    <aside id="editor-sidebar" class="w-80 shrink-0 bg-slate-800/95 border-r border-slate-700 flex flex-col z-10 shadow-lg text-slate-200 transition-all duration-300 relative">
       
-      <!-- Вкладки управления -->
-      <div class="grid grid-cols-3 gap-1 border-b border-slate-700 bg-slate-900/80 p-1.5 text-[10px]">
-        <button id="tab-btn-floors" class="sidebar-tab py-1.5 px-1 rounded-lg font-semibold flex items-center justify-center gap-1.5 bg-slate-800 text-white shadow-sm border border-slate-700" title="Этажи">
+      <!-- Вкладки управления (5 основных разделов без вылезания) -->
+      <div class="grid grid-cols-5 gap-1 border-b border-slate-700 bg-slate-900/80 p-1.5 text-[10px]">
+        <button id="tab-btn-floors" class="sidebar-tab py-1.5 px-1 rounded-lg font-semibold flex items-center justify-center gap-1 bg-slate-800 text-white shadow-sm border border-slate-700" title="Этажи">
           <i class="fa-solid fa-layer-group text-red-500"></i>
           <span>Этажи</span>
         </button>
@@ -101,10 +102,6 @@
         <button id="tab-btn-rooms" class="sidebar-tab py-1.5 px-1 rounded-lg font-medium flex items-center justify-center gap-1 text-slate-400 hover:text-white hover:bg-slate-800/50 transition" title="Комнаты">
           <i class="fa-solid fa-vector-square text-cyan-400"></i>
           <span>Зоны (<span id="tab-rooms-count">0</span>)</span>
-        </button>
-        <button id="tab-btn-pois" class="sidebar-tab py-1.5 px-1 rounded-lg font-medium flex items-center justify-center gap-1 text-slate-400 hover:text-white hover:bg-slate-800/50 transition" title="Точки интереса (POI)">
-          <i class="fa-solid fa-location-dot text-rose-400"></i>
-          <span>POI (<span id="tab-pois-count">0</span>)</span>
         </button>
         <button id="tab-btn-panos" class="sidebar-tab py-1.5 px-1 rounded-lg font-medium flex items-center justify-center gap-1 text-slate-400 hover:text-white hover:bg-slate-800/50 transition" title="Панорамы 360°">
           <i class="fa-solid fa-camera text-indigo-400"></i>
@@ -184,20 +181,7 @@
         </div>
       </div>
 
-      <!-- Вкладка 5: Список точек интереса (POI) -->
-      <div id="tab-content-pois" class="flex-1 flex flex-col overflow-hidden hidden">
-        <div class="p-3 border-b border-slate-700/80 flex items-center justify-between bg-slate-800/40">
-          <span class="text-xs font-bold uppercase tracking-wider text-rose-400 flex items-center gap-1.5">
-            <i class="fa-solid fa-location-dot"></i> Точки интереса
-          </span>
-          <span class="text-[11px] text-slate-400">Клик для перехода</span>
-        </div>
-        <div id="pois-list" class="flex-1 overflow-y-auto p-2.5 space-y-1.5">
-          <!-- Генерируется из JS -->
-        </div>
-      </div>
-
-      <!-- Вкладка 6: Список панорам (360°) -->
+      <!-- Вкладка 4: Список панорам (360°) -->
       <div id="tab-content-panos" class="flex-1 flex flex-col overflow-hidden hidden">
         <div class="p-3 border-b border-slate-700/80 flex items-center justify-between bg-slate-800/40">
           <span class="text-xs font-bold uppercase tracking-wider text-indigo-400 flex items-center gap-1.5">
@@ -219,6 +203,11 @@
       </div>
 
       </aside>
+
+    <!-- Плавающая кнопка сворачивания / разворачивания панели (снаружи aside, никогда не обрезается!) -->
+    <button id="btn-toggle-sidebar" class="absolute left-[308px] top-3 z-50 w-7 h-7 rounded-full bg-slate-800 border border-slate-600 text-slate-300 hover:text-white hover:bg-slate-700 shadow-xl flex items-center justify-center text-xs transition-all duration-300 cursor-pointer" title="Свернуть панель">
+      <i class="fa-solid fa-chevron-left text-[10px]" id="sidebar-toggle-icon"></i>
+    </button>
 
     <!-- Холст для рисования -->
     <main class="flex-1 relative overflow-hidden bg-slate-950 cursor-crosshair" id="canvas-container">
@@ -772,70 +761,6 @@
           <span id="label-edit-pano-coords" class="font-mono text-indigo-300 font-bold">X: 0, Y: 0</span>
         </div>
 
-        <!-- Секция: Точки интереса (Hotspots) на 360° панораме -->
-        <div class="space-y-2 p-3 bg-slate-950/70 rounded-xl border border-slate-800">
-          <div class="flex items-center justify-between">
-            <span class="text-xs font-semibold text-slate-200 flex items-center gap-1.5">
-              <i class="fa-solid fa-location-dot text-rose-400"></i>
-              <span>Точки интереса (POI) в панораме:</span>
-              <span id="pano-hs-count-badge" class="text-[10px] font-mono px-1.5 py-0.2 rounded bg-rose-950 text-rose-300 border border-rose-800">0</span>
-            </span>
-            <div class="flex items-center gap-1.5">
-              <button type="button" id="btn-pano-import-room-pois" class="px-2 py-1 bg-indigo-950/60 hover:bg-indigo-900 border border-indigo-500/40 text-indigo-300 hover:text-white rounded text-[11px] font-medium flex items-center gap-1 transition" title="Автоматически добавить точки интереса из этой комнаты по их координатам на плане">
-                <i class="fa-solid fa-wand-magic-sparkles text-[10px]"></i>
-                <span>Импорт из комнаты</span>
-              </button>
-              <button type="button" id="btn-pano-add-hotspot" class="px-2 py-1 bg-rose-950/60 hover:bg-rose-900 border border-rose-500/40 text-rose-300 hover:text-white rounded text-[11px] font-medium flex items-center gap-1 transition" title="Добавить новую точку интереса вручную">
-                <i class="fa-solid fa-plus text-[10px]"></i>
-                <span>Добавить POI</span>
-              </button>
-            </div>
-          </div>
-
-          <!-- Список добавленных точек интереса -->
-          <div id="pano-hotspots-list" class="space-y-1.5 max-h-36 overflow-y-auto pr-1">
-            <!-- Элементы генерируются из JS -->
-          </div>
-
-          <!-- Форма добавления точки (скрыта по умолчанию) -->
-          <div id="pano-add-hotspot-form" class="hidden p-2.5 bg-slate-900 rounded-lg border border-slate-700/80 space-y-2 text-xs">
-            <div class="grid grid-cols-2 gap-2">
-              <div>
-                <label class="text-[10px] text-slate-400 block mb-0.5">Название точки:</label>
-                <input type="text" id="input-new-hs-title" placeholder="Стойка регистрации" class="w-full bg-slate-950 border border-slate-700 rounded px-2.5 py-1 text-xs text-white focus:outline-none focus:border-rose-500">
-              </div>
-              <div>
-                <label class="text-[10px] text-slate-400 block mb-0.5">Категория:</label>
-                <select id="select-new-hs-category" class="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1 text-xs text-white focus:outline-none focus:border-rose-500 font-mono">
-                  <option value="stand">Выставочный стенд</option>
-                  <option value="info">Инфо / Ресепшн</option>
-                  <option value="food">Кофе / Еда / Напитки</option>
-                  <option value="wifi">Точка Wi-Fi</option>
-                  <option value="service">Сервис / Услуга</option>
-                  <option value="wc">Санузел</option>
-                  <option value="entrance">Вход / Выход</option>
-                </select>
-              </div>
-            </div>
-            <div class="flex items-center justify-between gap-2 pt-1 border-t border-slate-800">
-              <div class="flex items-center gap-2 text-[11px] text-slate-300 flex-1">
-                <span>Угол:</span>
-                <input type="range" id="input-new-hs-yaw" min="0" max="360" value="0" class="flex-1 accent-rose-500 cursor-pointer">
-                <span id="label-new-hs-yaw" class="font-mono text-rose-400 font-bold w-9 text-right">0°</span>
-              </div>
-              <div class="flex items-center gap-1.5">
-                <button type="button" id="btn-cancel-add-hs" class="px-2.5 py-1 rounded bg-slate-800 text-slate-300 hover:bg-slate-700 text-xs">
-                  Отмена
-                </button>
-                <button type="button" id="btn-confirm-add-hs" class="px-3 py-1 rounded bg-rose-600 hover:bg-rose-500 text-white font-semibold text-xs shadow">
-                  Добавить
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Кнопки управления -->
         <div class="flex items-center justify-between pt-2 border-t border-slate-800">
           <button type="button" id="btn-delete-current-pano" class="px-3 py-2 rounded-lg bg-rose-950/50 hover:bg-rose-900 border border-rose-800/60 text-rose-300 hover:text-white text-xs font-semibold flex items-center gap-1.5 transition hidden">
             <i class="fa-solid fa-trash"></i>
