@@ -137,7 +137,6 @@ export default function App() {
             }}
             onOpenEditor={handleOpenEditor}
             onOpenQR={handleOpenQR}
-            onOpenAuth={handleOpenAuth}
             onRefresh={loadSpaces}
           />
         )}

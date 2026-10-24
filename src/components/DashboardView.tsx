@@ -8,7 +8,6 @@ interface DashboardViewProps {
   onOpenCreate: () => void
   onOpenEditor: (space: SpaceObject) => void
   onOpenQR: (space: SpaceObject) => void
-  onOpenAuth: (tab: 'login' | 'register') => void
   onRefresh: () => void
 }
 
@@ -18,7 +17,6 @@ export function DashboardView({
   onOpenCreate,
   onOpenEditor,
   onOpenQR,
-  onOpenAuth,
   onRefresh
 }: DashboardViewProps) {
   const handleDelete = (id: string, title: string, e: React.MouseEvent) => {
@@ -44,25 +42,16 @@ export function DashboardView({
           </p>
         </div>
 
-        {/* Кнопка создания: отображается ТОЛЬКО для авторизованных пользователей при непустом списке */}
-        {user ? (
-          spaces.length > 0 && (
-            <button
-              onClick={onOpenCreate}
-              className="inline-flex h-9 items-center gap-1.5 rounded-full bg-[#e30613] px-4 text-xs font-semibold text-white hover:bg-[#c40511] transition-colors"
-            >
-              <svg className="size-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.2} d="M12 4v16m8-8H4" />
-              </svg>
-              <span>Создать объект</span>
-            </button>
-          )
-        ) : (
+        {/* Кнопка создания: отображается только для авторизованных организаторов */}
+        {user && spaces.length > 0 && (
           <button
-            onClick={() => onOpenAuth('login')}
-            className="inline-flex h-9 items-center gap-1.5 rounded-full border border-[#e9e9ec] bg-white px-4 text-xs font-semibold text-[#111113] hover:border-[#e30613] hover:text-[#e30613] transition"
+            onClick={onOpenCreate}
+            className="inline-flex h-9 items-center gap-1.5 rounded-full bg-[#e30613] px-4 text-xs font-semibold text-white hover:bg-[#c40511] transition-colors"
           >
-            <span>Войти как организатор</span>
+            <svg className="size-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.2} d="M12 4v16m8-8H4" />
+            </svg>
+            <span>Создать объект</span>
           </button>
         )}
       </div>
@@ -79,9 +68,9 @@ export function DashboardView({
           <p className="mt-1 text-xs text-[#6b6b70]">
             {user 
               ? 'Создайте первое здание или мероприятие, чтобы перейти к рисованию плана.' 
-              : 'Организаторы пока не опубликовали планы. Войдите в аккаунт, чтобы добавить свой.'}
+              : 'Организаторы пока не опубликовали планы помещений.'}
           </p>
-          {user ? (
+          {user && (
             <button
               onClick={onOpenCreate}
               className="mt-5 inline-flex h-9 items-center gap-1.5 rounded-full bg-[#e30613] px-4 text-xs font-semibold text-white hover:bg-[#c40511] transition-colors"
@@ -90,13 +79,6 @@ export function DashboardView({
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.2} d="M12 4v16m8-8H4" />
               </svg>
               <span>Создать объект</span>
-            </button>
-          ) : (
-            <button
-              onClick={() => onOpenAuth('login')}
-              className="mt-5 inline-flex h-9 items-center gap-1.5 rounded-full bg-[#e30613] px-4 text-xs font-semibold text-white hover:bg-[#c40511] transition-colors"
-            >
-              <span>Войти или зарегистрироваться</span>
             </button>
           )}
         </div>

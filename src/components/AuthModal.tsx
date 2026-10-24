@@ -74,19 +74,6 @@ export function AuthModal({
     onClose()
   }
 
-  // Быстрый демо-вход для презентации/хакатона
-  const handleQuickDemo = () => {
-    const demoUser: UserProfile = {
-      id: 'usr-ttk-demo',
-      name: 'Алексей Смирнов',
-      email: 'organizer@ttk-events.ru',
-      organization: 'АО «Компания ТрансТелеКом»',
-      role: 'Главный координатор мероприятий'
-    }
-    onSuccess(demoUser)
-    onClose()
-  }
-
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
       {/* Клик снаружи для закрытия */}
@@ -219,23 +206,6 @@ export function AuthModal({
             {tab === 'login' ? 'Войти в личный кабинет' : 'Зарегистрироваться'}
           </button>
         </form>
-
-        {/* Быстрый демо-вход для жюри/проверки */}
-        <div className="mt-6 pt-5 border-t border-[#f0f0f2] text-center">
-          <p className="text-[11px] text-[#8e8e93] mb-2.5">
-            Для быстрой демонстрации работы:
-          </p>
-          <button
-            type="button"
-            onClick={handleQuickDemo}
-            className="inline-flex items-center gap-1.5 rounded-full border border-[#e9e9ec] bg-[#fafafa] px-4 py-1.5 text-xs font-semibold text-[#111113] hover:border-[#e30613] hover:text-[#e30613] transition"
-          >
-            <span>Вход в 1 клик (Организатор ТТК)</span>
-            <svg className="size-3.5 text-[#e30613]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
-            </svg>
-          </button>
-        </div>
       </div>
     </div>
   )
