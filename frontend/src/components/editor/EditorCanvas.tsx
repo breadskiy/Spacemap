@@ -26,6 +26,7 @@ interface EditorCanvasProps {
   onDeleteRoom: (roomId: string) => void
   onDeletePoi: (poiId: string) => void
   onDeletePano: (panoId: string) => void
+  onFastCreateCorner: (x: number, y: number) => void
   onOpenCornerCreateModal: (x: number, y: number) => void
   onOpenCornerEditModal: (corner: PlanCorner) => void
   onOpenRoomCreateModal: (cornerIds: string[]) => void
@@ -105,6 +106,7 @@ export function EditorCanvas({
   onDeleteRoom,
   onDeletePoi,
   onDeletePano,
+  onFastCreateCorner,
   onOpenCornerCreateModal,
   onOpenCornerEditModal,
   onOpenRoomCreateModal,
@@ -118,6 +120,8 @@ export function EditorCanvas({
 }: EditorCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
   const containerRef = useRef<HTMLDivElement | null>(null)
+  const panZoomRef = useRef(panZoom)
+  panZoomRef.current = panZoom
 
   // Внутреннее интерактивное состояние
   const interStateRef = useRef({
@@ -560,10 +564,10 @@ export function EditorCanvas({
           ctx.fillStyle = '#f43f5e'
           ctx.strokeStyle = '#ffe4e6'
         } else if (isSelected || isHovered) {
-          ctx.fillStyle = '#f59e0b'
+          ctx.fillStyle = '#e30613'
           ctx.strokeStyle = '#ffffff'
         } else {
-          ctx.fillStyle = '#ef4444'
+          ctx.fillStyle = '#111113'
           ctx.strokeStyle = '#ffffff'
         }
 
@@ -586,7 +590,7 @@ export function EditorCanvas({
           const badgeY = pos.y - radius - 12 / zoom
 
           ctx.fillStyle = 'rgba(30, 41, 59, 0.95)'
-          ctx.strokeStyle = isSelected ? '#f59e0b' : '#334155'
+          ctx.strokeStyle = isSelected ? '#e30613' : '#334155'
           ctx.lineWidth = 1 / zoom
 
           ctx.beginPath()
@@ -595,7 +599,7 @@ export function EditorCanvas({
           ctx.stroke()
 
           ctx.font = `bold ${fontSize}px monospace`
-          ctx.fillStyle = isSelected ? '#fbbf24' : '#f87171'
+          ctx.fillStyle = isSelected ? '#ef4444' : '#f87171'
           ctx.textAlign = 'left'
           ctx.textBaseline = 'middle'
           const startTextX = badgeX - totalWidth / 2 + 5 / zoom
@@ -793,7 +797,14 @@ export function EditorCanvas({
     const inter = interStateRef.current
 
     // Панорамирование колесиком или Shift+ЛКМ
-    if (e.button === 1 || e.shiftKey) {
+    // Быстрый спавн точек при зажатом Shift
+    if (e.button === 0 && e.shiftKey) {
+      onFastCreateCorner(snap(world.x), snap(world.y))
+      return
+    }
+
+    // Панорамирование средней кнопкой мыши
+    if (e.button === 1) {
       inter.isPanning = true
       inter.panStart = { x: sx - panZoom.pan.x, y: sy - panZoom.pan.y }
       canvas.style.cursor = 'grabbing'
@@ -916,7 +927,11 @@ export function EditorCanvas({
         canvas.style.cursor = 'grabbing'
         return
       } else {
-        onOpenCornerCreateModal(snap(world.x), snap(world.y))
+        if (e.shiftKey) {
+          onFastCreateCorner(snap(world.x), snap(world.y))
+        } else {
+          onOpenCornerCreateModal(snap(world.x), snap(world.y))
+        }
         return
       }
     }
@@ -1057,28 +1072,64 @@ export function EditorCanvas({
     inter.draggedId = null
   }
 
-  const handleWheel = (e: React.WheelEvent<HTMLCanvasElement>) => {
-    e.preventDefault()
+  // Нативный non-passive обработчик зума (предотвращает зум страницы браузера)
+  useEffect(() => {
     const canvas = canvasRef.current
     if (!canvas) return
 
-    const rect = canvas.getBoundingClientRect()
-    const sx = e.clientX - rect.left
-    const sy = e.clientY - rect.top
+    const onNativeWheel = (e: WheelEvent) => {
+      e.preventDefault()
+      e.stopPropagation()
 
-    const zoomFactor = e.deltaY < 0 ? 1.12 : 0.89
-    const newZoom = Math.max(0.15, Math.min(6.0, panZoom.zoom * zoomFactor))
+      const rect = canvas.getBoundingClientRect()
+      const sx = e.clientX - rect.left
+      const sy = e.clientY - rect.top
 
-    const newPan = {
-      x: sx - (sx - panZoom.pan.x) * (newZoom / panZoom.zoom),
-      y: sy - (sy - panZoom.pan.y) * (newZoom / panZoom.zoom)
+      let zoomFactor: number
+      if (e.ctrlKey) {
+        zoomFactor = Math.exp(-e.deltaY * 0.015)
+      } else {
+        zoomFactor = e.deltaY < 0 ? 1.12 : 0.89
+      }
+
+      const curZoom = panZoomRef.current.zoom
+      const curPan = panZoomRef.current.pan
+      const newZoom = Math.max(0.15, Math.min(6.0, curZoom * zoomFactor))
+
+      const newPan = {
+        x: sx - (sx - curPan.x) * (newZoom / curZoom),
+        y: sy - (sy - curPan.y) * (newZoom / curZoom)
+      }
+
+      onPanZoomChange({
+        pan: newPan,
+        zoom: newZoom
+      })
     }
 
-    onPanZoomChange({
-      pan: newPan,
-      zoom: newZoom
-    })
-  }
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Shift') {
+        canvas.style.cursor = 'crosshair'
+        onStatusHintChange('Режим быстрого спавна: кликайте ЛКМ для создания точек')
+      }
+    }
+    const onKeyUp = (e: KeyboardEvent) => {
+      if (e.key === 'Shift') {
+        canvas.style.cursor = 'default'
+        onStatusHintChange('Курсор: выберите инструмент или перемещайтесь по плану')
+      }
+    }
+
+    canvas.addEventListener('wheel', onNativeWheel, { passive: false })
+    window.addEventListener('keydown', onKeyDown)
+    window.addEventListener('keyup', onKeyUp)
+
+    return () => {
+      canvas.removeEventListener('wheel', onNativeWheel)
+      window.removeEventListener('keydown', onKeyDown)
+      window.removeEventListener('keyup', onKeyUp)
+    }
+  }, [onPanZoomChange, onStatusHintChange])
 
   const handleDoubleClick = (e: React.MouseEvent<HTMLCanvasElement>) => {
     const canvas = canvasRef.current
@@ -1149,13 +1200,12 @@ export function EditorCanvas({
   }
 
   return (
-    <div ref={containerRef} className="flex-1 w-full h-full relative overflow-hidden bg-slate-950 select-none">
+    <div ref={containerRef} className="flex-1 w-full h-full relative overflow-hidden bg-slate-950 select-none touch-none overscroll-none">
       <canvas
         ref={canvasRef}
         onMouseDown={handleMouseDown}
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
-        onWheel={handleWheel}
         onDoubleClick={handleDoubleClick}
         onContextMenu={handleContextMenu}
         className="w-full h-full block"

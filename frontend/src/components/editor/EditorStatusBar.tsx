@@ -28,9 +28,9 @@ export function EditorStatusBar({
       {/* Координаты и масштабирование */}
       <div className="flex items-center gap-3 shrink-0">
         <div className="hidden sm:flex items-center gap-1 font-mono text-[10px] bg-slate-950 px-2 py-0.5 rounded border border-slate-800 text-slate-400">
-          <span>X: <strong className="text-amber-400">{Math.round(cursorCoords.x)}</strong></span>
+          <span>X: <strong className="text-red-400">{Math.round(cursorCoords.x)}</strong></span>
           <span className="text-slate-600">|</span>
-          <span>Y: <strong className="text-amber-400">{Math.round(cursorCoords.y)}</strong></span>
+          <span>Y: <strong className="text-red-400">{Math.round(cursorCoords.y)}</strong></span>
         </div>
 
         <div className="flex items-center gap-1 bg-slate-950 px-1 py-0.5 rounded border border-slate-800">

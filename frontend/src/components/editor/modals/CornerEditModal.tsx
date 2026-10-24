@@ -38,7 +38,7 @@ export function CornerEditModal({
       <div className="w-full max-w-sm rounded-2xl bg-slate-900 border border-slate-700 shadow-2xl p-5 text-slate-200">
         <div className="flex items-center justify-between border-b border-slate-800 pb-3 mb-4">
           <div className="flex items-center gap-2">
-            <div className="size-8 rounded-lg bg-amber-500/20 text-amber-400 flex items-center justify-center border border-amber-500/30">
+            <div className="size-8 rounded-lg bg-red-500/20 text-red-400 flex items-center justify-center border border-red-500/30">
               <EditIcon className="size-4" />
             </div>
             <div>
@@ -63,7 +63,7 @@ export function CornerEditModal({
                 step="1"
                 value={x}
                 onChange={e => setX(parseInt(e.target.value) || 0)}
-                className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white font-mono focus:border-amber-500 focus:outline-none"
+                className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white font-mono focus:border-red-500 focus:outline-none"
                 required
               />
             </div>
@@ -74,7 +74,7 @@ export function CornerEditModal({
                 step="1"
                 value={y}
                 onChange={e => setY(parseInt(e.target.value) || 0)}
-                className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white font-mono focus:border-amber-500 focus:outline-none"
+                className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white font-mono focus:border-red-500 focus:outline-none"
                 required
               />
             </div>
@@ -90,7 +90,7 @@ export function CornerEditModal({
             </button>
             <button
               type="submit"
-              className="px-4 py-2 rounded-xl text-xs font-bold bg-amber-500 hover:bg-amber-400 text-slate-950 shadow transition"
+              className="px-4 py-2 rounded-xl text-xs font-bold bg-[#e30613] hover:bg-[#c40511] text-white shadow transition"
             >
               Сохранить
             </button>

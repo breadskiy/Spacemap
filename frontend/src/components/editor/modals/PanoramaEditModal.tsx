@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react'
-import type { PlanPanorama, PlanFloor, PlanPanoramaHotspot } from '../../../types/plan'
-import { POI_CATEGORIES } from '../../../types/editor'
-import { CloseIcon, PanoIcon, TrashIcon, PlusIcon } from '../EditorIcons'
+import type { PlanPanorama, PlanFloor } from '../../../types/plan'
+import { CloseIcon, PanoIcon } from '../EditorIcons'
 
 interface PanoramaEditModalProps {
   isOpen: boolean
@@ -41,11 +40,6 @@ export function PanoramaEditModal({
   const [stitchError, setStitchError] = useState<string | null>(null)
 
   // Хотспоты (POI внутри панорамы)
-  const [hotspots, setHotspots] = useState<PlanPanoramaHotspot[]>([])
-  const [isAddHsOpen, setIsAddHsOpen] = useState<boolean>(false)
-  const [newHsTitle, setNewHsTitle] = useState<string>('')
-  const [newHsCategory, setNewHsCategory] = useState<string>('stand')
-  const [newHsYaw, setNewHsYaw] = useState<number>(0)
 
   const fileInputRef = useRef<HTMLInputElement | null>(null)
   const frame1InputRef = useRef<HTMLInputElement | null>(null)
@@ -56,14 +50,12 @@ export function PanoramaEditModal({
       setName(pano.name)
       setRoomId(pano.room_id || '')
       setImageData(pano.image_data || pano.image || '')
-      setHotspots(pano.hotspots ? [...pano.hotspots] : [])
       setImageMeta({ name: 'Сохраненная панорама' })
     } else {
       const room = targetRoomId ? floor.rooms?.find(r => r.id === targetRoomId) : null
       setName(room ? `Панорама: ${room.name}` : `Панорама ${(floor.panoramas?.length || 0) + 1}`)
       setRoomId(targetRoomId || '')
       setImageData('')
-      setHotspots([])
       setImageMeta(null)
     }
     setMode('single')
@@ -71,7 +63,6 @@ export function PanoramaEditModal({
     setFrame2(null)
     setIsStitching(false)
     setStitchError(null)
-    setIsAddHsOpen(false)
   }, [pano, targetRoomId, floor, isOpen])
 
   if (!isOpen) return null
@@ -143,67 +134,6 @@ export function PanoramaEditModal({
     }
   }
 
-  const handleImportRoomPois = () => {
-    if (!floor.pois || floor.pois.length === 0) {
-      alert('На этом этаже еще нет созданных меток POI.')
-      return
-    }
-
-    const roomPois = roomId
-      ? floor.pois.filter(p => p.room_id === roomId)
-      : floor.pois
-
-    const targetList = roomPois.length > 0 ? roomPois : floor.pois
-    let addedCount = 0
-
-    const updated = [...hotspots]
-    targetList.forEach(poi => {
-      const exists = updated.some(h => h.name === poi.name)
-      if (!exists) {
-        // Декартов азимут направления от точки панорамы к POI
-        const dx = poi.x - targetX
-        const dy = poi.y - targetY // +Y вверх (Север = 0°)
-        const yaw = Math.round((Math.atan2(dx, dy) * 180 / Math.PI + 360) % 360)
-
-        updated.push({
-          id: `hs_${Math.floor(Math.random() * 100000)}`,
-          name: poi.name,
-          category: poi.category || 'stand',
-          yaw,
-          pitch: 0
-        })
-        addedCount++
-      }
-    })
-
-    setHotspots(updated)
-    if (addedCount === 0) {
-      alert('Все точки из этой зоны уже добавлены.')
-    }
-  }
-
-  const handleAddManualHs = (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!newHsTitle.trim()) return
-
-    setHotspots(prev => [
-      ...prev,
-      {
-        id: `hs_${Math.floor(Math.random() * 100000)}`,
-        name: newHsTitle.trim(),
-        category: newHsCategory,
-        yaw: Math.max(0, Math.min(360, newHsYaw)),
-        pitch: 0
-      }
-    ])
-    setNewHsTitle('')
-    setIsAddHsOpen(false)
-  }
-
-  const handleDeleteHs = (hsId: string) => {
-    setHotspots(prev => prev.filter(h => h.id !== hsId))
-  }
-
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     const finalPano: PlanPanorama = {
@@ -214,7 +144,7 @@ export function PanoramaEditModal({
       image_data: imageData || undefined,
       image: imageData || undefined,
       room_id: roomId || undefined,
-      hotspots
+
     }
     onSave(finalPano)
     onClose()
@@ -337,7 +267,6 @@ export function PanoramaEditModal({
                               y: targetY,
                               image_data: imageData,
                               room_id: roomId,
-                              hotspots
                             })
                           }}
                           className="px-2.5 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-[11px] transition shadow"
@@ -461,133 +390,6 @@ export function PanoramaEditModal({
                 ))}
               </select>
             </div>
-          </div>
-
-          {/* Секция точек интереса (Hotspots) внутри сферы */}
-          <div className="p-3.5 rounded-2xl bg-slate-950/70 border border-slate-800 space-y-3">
-            <div className="flex items-center justify-between">
-              <div>
-                <span className="font-bold text-slate-200 block text-xs">
-                  Метки и стенды внутри панорамы ({hotspots.length})
-                </span>
-                <span className="text-[10px] text-slate-400">
-                  Интерактивные указатели при вращении 360°
-                </span>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <button
-                  type="button"
-                  onClick={handleImportRoomPois}
-                  className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-indigo-300 text-[11px] font-semibold transition border border-slate-700"
-                >
-                  Импорт POI зоны
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setIsAddHsOpen(!isAddHsOpen)}
-                  className="px-2.5 py-1 rounded-lg bg-indigo-600/30 hover:bg-indigo-600/50 text-indigo-200 text-[11px] font-semibold transition border border-indigo-500/40 flex items-center gap-1"
-                >
-                  <PlusIcon className="size-3" />
-                  <span>Добавить</span>
-                </button>
-              </div>
-            </div>
-
-            {/* Форма ручного добавления маркера */}
-            {isAddHsOpen && (
-              <div className="p-3 rounded-xl bg-slate-900 border border-indigo-900/50 space-y-2">
-                <div className="grid grid-cols-3 gap-2">
-                  <div className="col-span-1">
-                    <input
-                      type="text"
-                      placeholder="Название метки"
-                      value={newHsTitle}
-                      onChange={e => setNewHsTitle(e.target.value)}
-                      className="w-full bg-slate-950 border border-slate-700 rounded-lg px-2 py-1 text-xs text-white"
-                    />
-                  </div>
-                  <div>
-                    <select
-                      value={newHsCategory}
-                      onChange={e => setNewHsCategory(e.target.value)}
-                      className="w-full bg-slate-950 border border-slate-700 rounded-lg px-2 py-1 text-xs text-white"
-                    >
-                      {Object.values(POI_CATEGORIES).map(cat => (
-                        <option key={cat.id} value={cat.id}>
-                          {cat.icon} {cat.label}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <input
-                      type="number"
-                      placeholder="Азимут (0-360°)"
-                      value={newHsYaw}
-                      onChange={e => setNewHsYaw(parseInt(e.target.value) || 0)}
-                      className="w-full bg-slate-950 border border-slate-700 rounded-lg px-2 py-1 text-xs text-white font-mono"
-                    />
-                  </div>
-                </div>
-                <div className="flex justify-end gap-1.5">
-                  <button
-                    type="button"
-                    onClick={() => setIsAddHsOpen(false)}
-                    className="px-2.5 py-0.5 rounded text-[11px] text-slate-400 hover:text-white"
-                  >
-                    Отмена
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleAddManualHs}
-                    className="px-3 py-0.5 rounded bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-[11px]"
-                  >
-                    Добавить
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {/* Список хотспотов */}
-            {hotspots.length === 0 ? (
-              <p className="text-[11px] text-slate-500 text-center py-2">
-                В панораму еще не добавлены метки. Нажмите «Импорт POI зоны» для авто-расчета азимута.
-              </p>
-            ) : (
-              <div className="max-h-32 overflow-y-auto space-y-1 pr-1">
-                {hotspots.map(hs => {
-                  const cat = POI_CATEGORIES[hs.category] || POI_CATEGORIES.stand
-                  return (
-                    <div
-                      key={hs.id}
-                      className="flex items-center justify-between px-2.5 py-1.5 rounded-lg bg-slate-900 border border-slate-800 text-[11px]"
-                    >
-                      <div className="flex items-center gap-2 min-w-0">
-                        <span style={{ color: cat.color }}>{cat.icon}</span>
-                        <span className="font-semibold text-slate-200 truncate">{hs.name}</span>
-                        <span className="font-mono text-[10px] text-slate-400">
-                          {hs.yaw}° азимут
-                        </span>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => handleDeleteHs(hs.id)}
-                        className="text-slate-500 hover:text-rose-400 transition"
-                      >
-                        <TrashIcon className="size-3.5" />
-                      </button>
-                    </div>
-                  )
-                })}
-              </div>
-            )}
-          </div>
-
-          <div className="bg-slate-950/70 rounded-xl p-2.5 border border-slate-800 flex items-center justify-between text-xs">
-            <span className="text-slate-400">Координаты камеры:</span>
-            <span className="font-mono text-indigo-400 font-bold">
-              X: {targetX}, Y: {targetY}
-            </span>
           </div>
 
           {/* Кнопки действий */}

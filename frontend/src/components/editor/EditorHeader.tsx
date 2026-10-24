@@ -9,6 +9,7 @@ import {
   PanoIcon,
   TrashIcon,
   FloppyIcon,
+  CheckIcon,
   FileImportIcon,
   DownloadIcon,
   CodeIcon
@@ -45,7 +46,7 @@ export function EditorHeader({
     {
       id: 'corner',
       label: 'Точка',
-      icon: <PointIcon className="size-3.5 text-amber-400" />,
+      icon: <PointIcon className="size-3.5 text-red-500" />,
       hint: 'Поставить точку или переместить'
     },
     {
@@ -128,13 +129,17 @@ export function EditorHeader({
           onClick={onSave}
           className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition shadow cursor-pointer ${
             isDirty
-              ? 'bg-amber-600 hover:bg-amber-500 text-white shadow-amber-600/30'
+              ? 'bg-[#e30613] hover:bg-[#c40511] text-white shadow-lg shadow-red-600/40 ring-2 ring-red-400/50'
               : 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-600/30'
           }`}
           title="Сохранить план помещения в проект"
         >
-          <FloppyIcon className="size-3.5" />
-          <span className="hidden xs:inline">Сохранить</span>
+          {isDirty ? (
+            <FloppyIcon className="size-3.5 animate-pulse text-white" />
+          ) : (
+            <CheckIcon className="size-3.5 text-white" />
+          )}
+          <span className="hidden xs:inline">{isDirty ? 'Сохранить*' : 'Сохранено'}</span>
         </button>
 
         <label

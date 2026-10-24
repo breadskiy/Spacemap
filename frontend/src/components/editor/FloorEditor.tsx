@@ -80,7 +80,7 @@ export function FloorEditor({ space, onBack: _onBack, onUpdateSpace }: FloorEdit
   // Статус и координаты курсора
   const [statusHint, setStatusHint] = useState<string>('Курсор: выберите инструмент или перемещайтесь по плану')
   const [cursorCoords, setCursorCoords] = useState<{ x: number; y: number }>({ x: 0, y: 0 })
-  const [isSavedRecently, setIsSavedRecently] = useState<boolean>(false)
+  const [isDirty, setIsDirty] = useState<boolean>(false)
 
   // Модальные окна
   const [modalCornerCreate, setModalCornerCreate] = useState<{ isOpen: boolean; x: number; y: number }>({
@@ -154,14 +154,19 @@ export function FloorEditor({ space, onBack: _onBack, onUpdateSpace }: FloorEdit
         const updatedSpace = { ...space, wallsCount }
         onUpdateSpace(updatedSpace)
 
-        setIsSavedRecently(true)
-        setTimeout(() => setIsSavedRecently(false), 2000)
       } catch (err) {
         console.warn('Ошибка сохранения плана:', err)
       }
     },
     [space, onUpdateSpace]
   )
+
+  // Явное сохранение изменений
+  const handleManualSave = useCallback(() => {
+    savePlanToStorage(plan)
+    setIsDirty(false)
+    setStatusHint('Все изменения успешно сохранены!')
+  }, [plan, savePlanToStorage])
 
   // Пересчет длин стен для этажа
   const recalculateWalls = (floor: PlanFloor): PlanFloor => {
@@ -270,6 +275,13 @@ export function FloorEditor({ space, onBack: _onBack, onUpdateSpace }: FloorEdit
     })
     setStatusHint(`Создана точка [X: ${x}, Y: ${y}]`)
   }
+
+  // Быстрое создание точек со Shift
+  const handleFastCreateCorner = useCallback((x: number, y: number) => {
+    handleCreateCorner(x, y)
+    setIsDirty(true)
+    setStatusHint(`Точка создана в [${x}, ${y}]. Зажмите Shift для быстрого создания точек.`)
+  }, [handleCreateCorner])
 
   const handleCornerMove = (cornerId: string, x: number, y: number) => {
     updateCurrentFloor(floor => ({
@@ -543,11 +555,11 @@ export function FloorEditor({ space, onBack: _onBack, onUpdateSpace }: FloorEdit
       <EditorHeader
         tool={tool}
         onSelectTool={handleSelectTool}
-        onSave={() => savePlanToStorage(plan)}
+        onSave={handleManualSave}
         onExportJson={handleExportJson}
         onImportJson={handleImportJson}
         onOpenJsonModal={() => setIsJsonModalOpen(true)}
-        isDirty={!isSavedRecently}
+        isDirty={isDirty}
       />
 
       {/* Основная рабочая область: Сайдбар + Канвас */}
@@ -630,6 +642,7 @@ export function FloorEditor({ space, onBack: _onBack, onUpdateSpace }: FloorEdit
           onDeleteRoom={handleDeleteRoom}
           onDeletePoi={handleDeletePoi}
           onDeletePano={handleDeletePano}
+          onFastCreateCorner={handleFastCreateCorner}
           onOpenCornerCreateModal={(x, y) => setModalCornerCreate({ isOpen: true, x, y })}
           onOpenCornerEditModal={corner => setModalCornerEdit({ isOpen: true, corner })}
           onOpenRoomCreateModal={cornerIds =>

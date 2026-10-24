@@ -57,7 +57,7 @@ export function CornerCreateModal({
       <div className="w-full max-w-md rounded-2xl bg-slate-900 border border-slate-700 shadow-2xl p-5 text-slate-200">
         <div className="flex items-center justify-between border-b border-slate-800 pb-3 mb-4">
           <div className="flex items-center gap-2">
-            <div className="size-8 rounded-lg bg-amber-500/20 text-amber-400 flex items-center justify-center font-bold text-sm border border-amber-500/30">
+            <div className="size-8 rounded-lg bg-red-500/20 text-red-400 flex items-center justify-center font-bold text-sm border border-red-500/30">
               •
             </div>
             <div>
@@ -80,7 +80,7 @@ export function CornerCreateModal({
             onClick={() => setMode('absolute')}
             className={`py-1.5 rounded-lg transition ${
               mode === 'absolute'
-                ? 'bg-amber-500 text-slate-950 shadow'
+                ? 'bg-[#e30613] text-white shadow'
                 : 'text-slate-400 hover:text-white'
             }`}
           >
@@ -91,7 +91,7 @@ export function CornerCreateModal({
             onClick={() => setMode('relative')}
             className={`py-1.5 rounded-lg transition ${
               mode === 'relative'
-                ? 'bg-amber-500 text-slate-950 shadow'
+                ? 'bg-[#e30613] text-white shadow'
                 : 'text-slate-400 hover:text-white'
             }`}
             disabled={corners.length === 0}
@@ -111,7 +111,7 @@ export function CornerCreateModal({
                   step="1"
                   value={absX}
                   onChange={e => setAbsX(parseInt(e.target.value) || 0)}
-                  className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white font-mono focus:border-amber-500 focus:outline-none"
+                  className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white font-mono focus:border-red-500 focus:outline-none"
                   required
                 />
               </div>
@@ -122,7 +122,7 @@ export function CornerCreateModal({
                   step="1"
                   value={absY}
                   onChange={e => setAbsY(parseInt(e.target.value) || 0)}
-                  className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white font-mono focus:border-amber-500 focus:outline-none"
+                  className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white font-mono focus:border-red-500 focus:outline-none"
                   required
                 />
               </div>
@@ -134,7 +134,7 @@ export function CornerCreateModal({
                 <select
                   value={baseCornerId}
                   onChange={e => setBaseCornerId(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:border-amber-500 focus:outline-none"
+                  className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:border-red-500 focus:outline-none"
                 >
                   {corners.map(c => (
                     <option key={c.id} value={c.id}>
@@ -152,7 +152,7 @@ export function CornerCreateModal({
                     step="1"
                     value={relDx}
                     onChange={e => setRelDx(parseInt(e.target.value) || 0)}
-                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white font-mono focus:border-amber-500 focus:outline-none"
+                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white font-mono focus:border-red-500 focus:outline-none"
                     required
                   />
                 </div>
@@ -163,7 +163,7 @@ export function CornerCreateModal({
                     step="1"
                     value={relDy}
                     onChange={e => setRelDy(parseInt(e.target.value) || 0)}
-                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white font-mono focus:border-amber-500 focus:outline-none"
+                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white font-mono focus:border-red-500 focus:outline-none"
                     required
                   />
                 </div>
@@ -174,7 +174,7 @@ export function CornerCreateModal({
                   type="checkbox"
                   checked={connectWall}
                   onChange={e => setConnectWall(e.target.checked)}
-                  className="rounded border-slate-700 text-amber-500 focus:ring-amber-500 bg-slate-900"
+                  className="rounded border-slate-700 text-red-600 focus:ring-red-500 bg-slate-900"
                 />
                 <span className="text-xs text-slate-300">Автоматически соединить стеной с базовой точкой</span>
               </label>
@@ -184,7 +184,7 @@ export function CornerCreateModal({
           {/* Превью итоговых координат */}
           <div className="bg-slate-950/80 rounded-xl p-2.5 border border-slate-800 flex items-center justify-between text-xs">
             <span className="text-slate-400">Итоговые координаты:</span>
-            <span className="font-mono font-bold text-amber-400">
+            <span className="font-mono font-bold text-red-400">
               X: {finalX}, Y: {finalY}
             </span>
           </div>
@@ -199,7 +199,7 @@ export function CornerCreateModal({
             </button>
             <button
               type="submit"
-              className="px-4 py-2 rounded-xl text-xs font-bold bg-amber-500 hover:bg-amber-400 text-slate-950 shadow-md shadow-amber-500/20 transition"
+              className="px-4 py-2 rounded-xl text-xs font-bold bg-[#e30613] hover:bg-[#c40511] text-white shadow-md shadow-red-600/30 transition"
             >
               Создать точку
             </button>

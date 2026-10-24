@@ -96,7 +96,7 @@ export function EditorSidebar({
       id: 'corners',
       label: 'Точки',
       count: currentFloor?.corners?.length || 0,
-      icon: <PointIcon className="size-3 text-amber-400" />
+      icon: <PointIcon className="size-3 text-red-400" />
     },
     {
       id: 'walls',
@@ -301,12 +301,12 @@ export function EditorSidebar({
                       }}
                       className={`p-2 px-3 rounded-lg border text-xs flex items-center justify-between transition cursor-pointer ${
                         isSelected
-                          ? 'bg-amber-500/15 border-amber-500/80 text-white'
+                          ? 'bg-red-500/15 border-red-500/80 text-white'
                           : 'bg-slate-900/60 border-slate-700/60 hover:border-slate-500 text-slate-300'
                       }`}
                     >
                       <div className="flex items-center gap-2">
-                        <span className="font-mono font-bold text-amber-400 bg-amber-400/10 px-1.5 py-0.5 rounded text-[11px] border border-amber-400/20">
+                        <span className="font-mono font-bold text-red-400 bg-red-400/10 px-1.5 py-0.5 rounded text-[11px] border border-red-400/20">
                           {c.id}
                         </span>
                         <div className="font-mono text-[11px] text-slate-300">
@@ -320,7 +320,7 @@ export function EditorSidebar({
                             e.stopPropagation()
                             onEditCorner(c)
                           }}
-                          className="text-slate-400 hover:text-amber-400 p-1 rounded transition"
+                          className="text-slate-400 hover:text-red-400 p-1 rounded transition"
                           title="Изменить координаты"
                         >
                           <EditIcon className="size-3.5" />
@@ -376,9 +376,9 @@ export function EditorSidebar({
                           {w.id}
                         </span>
                         <div className="flex items-center gap-1 font-mono text-[11px] text-slate-200">
-                          <span className="text-amber-400">{w.from}</span>
+                          <span className="text-red-400">{w.from}</span>
                           <span className="text-slate-500 text-[10px]">➔</span>
-                          <span className="text-amber-400">{w.to}</span>
+                          <span className="text-red-400">{w.to}</span>
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
@@ -611,7 +611,7 @@ export function EditorSidebar({
                               e.stopPropagation()
                               onEditPano(pano)
                             }}
-                            className="p-1 rounded text-slate-400 hover:text-amber-400 transition"
+                            className="p-1 rounded text-slate-400 hover:text-red-400 transition"
                             title="Настройки"
                           >
                             <EditIcon className="size-3.5" />
