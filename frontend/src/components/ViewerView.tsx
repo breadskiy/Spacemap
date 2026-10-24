@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import type { SpaceObject } from '../types/space'
 import type { PlanData, PlanFloor, PlanPoi, PlanCorner, PlanPanorama } from '../types/plan'
 import { PanoramaViewerModal } from './PanoramaViewerModal'
@@ -82,6 +82,7 @@ export function ViewerView({ space, onBack }: ViewerViewProps) {
 
   const panRef = useRef(pan)
   const zoomRef = useRef(zoom)
+  const minZoomRef = useRef(0.35)
   panRef.current = pan
   zoomRef.current = zoom
 
@@ -118,8 +119,8 @@ export function ViewerView({ space, onBack }: ViewerViewProps) {
 
   const currentFloor = plan?.floors.find(f => f.id === activeFloorId) || plan?.floors[0]
 
-  // Центрирование при загрузке
-  useEffect(() => {
+  // Автоматическое центрирование и приближение так, чтобы весь план был отлично виден
+  const fitToPlan = useCallback(() => {
     if (!currentFloor || !containerRef.current) return
     const container = containerRef.current
     const corners = currentFloor.corners
@@ -135,10 +136,18 @@ export function ViewerView({ space, onBack }: ViewerViewProps) {
 
     const w = maxX - minX || 500
     const h = maxY - minY || 400
-    const availableW = container.clientWidth * 0.75
-    const availableH = container.clientHeight * 0.75
+    const paddingX = 100
+    const paddingY = 90
+    const availableW = Math.max(200, container.clientWidth - paddingX * 2)
+    const availableH = Math.max(200, container.clientHeight - paddingY * 2)
 
-    const fitZoom = Math.min(Math.max(0.4, Math.min(availableW / w, availableH / h)), 1.5)
+    const scale = Math.min(availableW / w, availableH / h)
+    // Оптимальный зум по дефолту, чтобы весь план здания был крупно и четко виден
+    const fitZoom = Math.max(0.35, Math.min(scale, 2.5))
+    // Ограничение на отдаление: не даем отдалиться мельче, чем комфортный обзор здания
+    const minZoom = Math.max(0.25, fitZoom * 0.65)
+    minZoomRef.current = minZoom
+
     const centerX = (minX + maxX) / 2
     const centerY = (minY + maxY) / 2
 
@@ -147,7 +156,15 @@ export function ViewerView({ space, onBack }: ViewerViewProps) {
       x: container.clientWidth / 2 - centerX * fitZoom,
       y: container.clientHeight / 2 + centerY * fitZoom
     })
-  }, [activeFloorId, plan])
+  }, [currentFloor])
+
+  useEffect(() => {
+    fitToPlan()
+    const timer = setTimeout(() => {
+      fitToPlan()
+    }, 60)
+    return () => clearTimeout(timer)
+  }, [fitToPlan])
 
   // Координатные преобразования
   const screenToWorld = (sx: number, sy: number) => {
@@ -786,7 +803,7 @@ export function ViewerView({ space, onBack }: ViewerViewProps) {
       const worldBefore = screenToWorld(sx, sy)
 
       const factor = e.deltaY < 0 ? 1.15 : 0.85
-      const newZoom = Math.min(Math.max(0.2, zoomRef.current * factor), 4.0)
+      const newZoom = Math.min(Math.max(minZoomRef.current, zoomRef.current * factor), 4.0)
 
       setZoom(newZoom)
       setPan({
@@ -868,7 +885,7 @@ export function ViewerView({ space, onBack }: ViewerViewProps) {
         if (touchStartDist > 0) {
           const factor = dist / touchStartDist
           const worldBefore = screenToWorld(midX, midY)
-          const newZoom = Math.min(Math.max(0.2, zoomRef.current * factor), 4.0)
+          const newZoom = Math.min(Math.max(minZoomRef.current, zoomRef.current * factor), 4.0)
           setZoom(newZoom)
           setPan({
             x: midX - worldBefore.x * newZoom,
@@ -981,16 +998,7 @@ export function ViewerView({ space, onBack }: ViewerViewProps) {
 
         {/* Переключатель этажей и панорамы */}
         <div className="flex items-center gap-2">
-          {currentFloor?.panoramas && currentFloor.panoramas.length > 0 && (
-            <button
-              onClick={() => setSelectedPanorama(currentFloor.panoramas![0])}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 text-indigo-700 text-xs font-bold transition cursor-pointer shadow-xs"
-              title="Открыть интерактивную панораму 360°"
-            >
-              <span>📸</span>
-              <span>Панорамы ({currentFloor.panoramas.length})</span>
-            </button>
-          )}
+          
 
           {plan && plan.floors.length > 1 && (
             <div className="flex items-center gap-1 bg-[#f4f4f6] p-1 rounded-full border border-[#e9e9ec]">
@@ -1190,36 +1198,13 @@ export function ViewerView({ space, onBack }: ViewerViewProps) {
       >
         <canvas ref={canvasRef} className="w-full h-full block" />
 
-        {/* Плавающий виджет 360° панорам, если на этаже есть панорамы */}
-        {currentFloor?.panoramas && currentFloor.panoramas.length > 0 && !selectedPoi && (
-          <div className="absolute bottom-6 left-6 z-20 pointer-events-auto">
-            <div className="bg-white/95 backdrop-blur-md rounded-2xl border border-indigo-200 p-2 sm:p-2.5 shadow-xl flex items-center gap-2.5">
-              <div className="size-8 rounded-xl bg-indigo-600 text-white flex items-center justify-center text-sm font-bold shadow-xs">
-                📸
-              </div>
-              <div>
-                <div className="text-xs font-bold text-[#111113]">
-                  Панорамы 360° ({currentFloor.panoramas.length})
-                </div>
-                <div className="text-[10px] text-[#6b6b70] truncate max-w-[150px]">
-                  {currentFloor.panoramas[0].name || 'Сферический тур'}
-                </div>
-              </div>
-              <button
-                onClick={() => setSelectedPanorama(currentFloor.panoramas![0])}
-                className="ml-1 px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold transition shadow-xs cursor-pointer"
-              >
-                Смотреть
-              </button>
-            </div>
-          </div>
-        )}
+        
 
         {/* Кнопки зума справа снизу */}
         <div className="absolute bottom-6 right-6 flex flex-col gap-2 z-20">
           <button
-            onClick={() => setZoom(prev => Math.min(prev * 1.2, 4.0))}
-            className="size-10 rounded-full bg-white border border-[#e9e9ec] shadow-md flex items-center justify-center text-[#111113] hover:border-[#e30613] hover:text-[#e30613] transition"
+            onClick={() => setZoom(prev => Math.min(prev * 1.25, 4.0))}
+            className="size-10 rounded-full bg-white border border-[#e9e9ec] shadow-md flex items-center justify-center text-[#111113] hover:border-[#e30613] hover:text-[#e30613] transition cursor-pointer"
             title="Приблизить"
           >
             <svg className="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -1227,12 +1212,21 @@ export function ViewerView({ space, onBack }: ViewerViewProps) {
             </svg>
           </button>
           <button
-            onClick={() => setZoom(prev => Math.max(prev / 1.2, 0.2))}
-            className="size-10 rounded-full bg-white border border-[#e9e9ec] shadow-md flex items-center justify-center text-[#111113] hover:border-[#e30613] hover:text-[#e30613] transition"
-            title="Отдалить"
+            onClick={() => setZoom(prev => Math.max(prev / 1.25, minZoomRef.current))}
+            className="size-10 rounded-full bg-white border border-[#e9e9ec] shadow-md flex items-center justify-center text-[#111113] hover:border-[#e30613] hover:text-[#e30613] transition cursor-pointer"
+            title="Отдалить (с ограничением)"
           >
             <svg className="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.2} d="M20 12H4" />
+            </svg>
+          </button>
+          <button
+            onClick={fitToPlan}
+            className="size-10 rounded-full bg-white border border-[#e9e9ec] shadow-md flex items-center justify-center text-[#111113] hover:border-[#e30613] hover:text-[#e30613] transition cursor-pointer"
+            title="Показать весь план"
+          >
+            <svg className="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
             </svg>
           </button>
         </div>
