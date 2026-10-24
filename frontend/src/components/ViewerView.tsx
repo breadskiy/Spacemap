@@ -81,32 +81,7 @@ export function ViewerView({ space, onBack }: ViewerViewProps) {
           return
         }
       }
-      // Резервная проверка общего черновика
-      const draft = localStorage.getItem('ttk_floor_plan_draft')
-      if (draft) {
-        const parsed: PlanData = JSON.parse(draft)
-        if (parsed.floors && parsed.floors.length > 0 && parsed.floors.some(f => (f.walls?.length > 0 || f.corners?.length > 0 || (f.rooms && f.rooms.length > 0) || (f.panoramas && f.panoramas.length > 0)))) {
-          setPlan(parsed)
-          setActiveFloorId(parsed.floors[0].id)
-          return
-        }
-      }
-      // Проверка любых сохраненных планов в localStorage
-      for (let i = 0; i < localStorage.length; i++) {
-        const k = localStorage.key(i)
-        if (k && k.startsWith('spacemap_plan_')) {
-          const val = localStorage.getItem(k)
-          if (val && (val.includes('"walls"') || val.includes('"corners"') || val.includes('"panoramas"'))) {
-            const parsed: PlanData = JSON.parse(val)
-            if (parsed.floors && parsed.floors.length > 0) {
-              setPlan(parsed)
-              setActiveFloorId(parsed.floors[0].id)
-              return
-            }
-          }
-        }
-      }
-    } catch (e) {
+      } catch (e) {
       console.warn('Could not read plan data', e)
     }
 

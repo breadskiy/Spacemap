@@ -47,6 +47,8 @@ interface EditorSidebarProps {
   onDeletePano: (panoId: string) => void
   onOpenPanoHelp: () => void
   onStartCreatePano: () => void
+  onAddDefaultBox?: () => void
+  onClearFloor?: () => void
 }
 
 export function EditorSidebar({
@@ -78,7 +80,9 @@ export function EditorSidebar({
   onViewPano,
   onDeletePano,
   onOpenPanoHelp,
-  onStartCreatePano
+  onStartCreatePano,
+  onAddDefaultBox,
+  onClearFloor
 }: EditorSidebarProps) {
   const [isCollapsed, setIsCollapsed] = useState<boolean>(false)
   const [activeTab, setActiveTab] = useState<SidebarTabType>('floors')
@@ -283,7 +287,31 @@ export function EditorSidebar({
 
           {/* Вкладка 2: Точки (углы) */}
           {activeTab === 'corners' && (
-            <div className="space-y-1.5">
+            <div className="space-y-2">
+              <div className="flex items-center gap-1.5 pb-2 border-b border-slate-800">
+                {onAddDefaultBox && (
+                  <button
+                    onClick={onAddDefaultBox}
+                    className="flex-1 bg-slate-800 hover:bg-slate-700 text-slate-200 py-1.5 px-2 rounded-lg text-[11px] font-semibold flex items-center justify-center gap-1 border border-slate-700 transition cursor-pointer"
+                    title="Создать 4 точки базового контура комнаты со стенами"
+                  >
+                    <span>+ Базовый контур</span>
+                  </button>
+                )}
+                {onClearFloor && (
+                  <button
+                    onClick={onClearFloor}
+                    className="bg-slate-800 hover:bg-rose-950 text-slate-400 hover:text-rose-300 py-1.5 px-2 rounded-lg text-[11px] flex items-center justify-center border border-slate-700 transition cursor-pointer"
+                    title="Очистить этаж"
+                  >
+                    <TrashIcon className="size-3.5" />
+                  </button>
+                )}
+              </div>
+
+              <div className="p-2 rounded-lg bg-slate-900/80 border border-slate-800 text-[10px] text-slate-400">
+                💡 <strong className="text-slate-300">Shift + ЛКМ</strong> — быстрый спавн точек по клику без диалоговых окон.
+              </div>
               {!currentFloor?.corners || currentFloor.corners.length === 0 ? (
                 <div className="text-center py-8 text-xs text-slate-500">
                   <PointIcon className="size-8 mx-auto mb-2 text-slate-600" />
@@ -345,7 +373,10 @@ export function EditorSidebar({
 
           {/* Вкладка 3: Стены */}
           {activeTab === 'walls' && (
-            <div className="space-y-1.5">
+            <div className="space-y-2">
+              <div className="p-2 rounded-lg bg-slate-900/80 border border-slate-800 text-[10px] text-slate-400">
+                💡 Кликайте точки по очереди — строится непрерывная цепочка. Клик по свободной сетке создает точку на лету. Esc / ПКМ для завершения.
+              </div>
               {!currentFloor?.walls || currentFloor.walls.length === 0 ? (
                 <div className="text-center py-8 text-xs text-slate-500">
                   <WallIcon className="size-8 mx-auto mb-2 text-slate-600" />

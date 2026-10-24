@@ -27,6 +27,7 @@ interface EditorCanvasProps {
   onDeletePoi: (poiId: string) => void
   onDeletePano: (panoId: string) => void
   onFastCreateCorner: (x: number, y: number) => void
+  onFastCreateWallCorner?: (x: number, y: number, connectFromId?: string | null) => string
   onOpenCornerCreateModal: (x: number, y: number) => void
   onOpenCornerEditModal: (corner: PlanCorner) => void
   onOpenRoomCreateModal: (cornerIds: string[]) => void
@@ -107,6 +108,7 @@ export function EditorCanvas({
   onDeletePoi,
   onDeletePano,
   onFastCreateCorner,
+  onFastCreateWallCorner,
   onOpenCornerCreateModal,
   onOpenCornerEditModal,
   onOpenRoomCreateModal,
@@ -122,6 +124,13 @@ export function EditorCanvas({
   const containerRef = useRef<HTMLDivElement | null>(null)
   const panZoomRef = useRef(panZoom)
   panZoomRef.current = panZoom
+  const toolRef = useRef(tool)
+  toolRef.current = tool
+
+  useEffect(() => {
+    interStateRef.current.wallStartCornerId = null
+    interStateRef.current.roomDraftCorners = []
+  }, [tool])
 
   // Внутреннее интерактивное состояние
   const interStateRef = useRef({
@@ -284,6 +293,19 @@ export function EditorCanvas({
       ctx.lineTo(maxX, -y)
     }
     ctx.stroke()
+
+    // Архитектурные узловые точки привязки (Snap Points) на пересечениях сетки
+    if (zoom >= 0.7) {
+      ctx.fillStyle = 'rgba(148, 163, 184, 0.4)'
+      const dotRadius = Math.max(1, 1.2 / zoom)
+      for (let x = startGridX; x <= endGridX; x += step) {
+        for (let y = startGridY; y <= endGridY; y += step) {
+          ctx.beginPath()
+          ctx.arc(x, -y, dotRadius, 0, Math.PI * 2)
+          ctx.fill()
+        }
+      }
+    }
 
     // Главные оси (X - красная, Y - зеленая)
     ctx.beginPath()
@@ -798,7 +820,7 @@ export function EditorCanvas({
 
     // Панорамирование колесиком или Shift+ЛКМ
     // Быстрый спавн точек при зажатом Shift
-    if (e.button === 0 && e.shiftKey) {
+    if (e.button === 0 && e.shiftKey && tool === 'corner') {
       onFastCreateCorner(snap(world.x), snap(world.y))
       return
     }
@@ -900,12 +922,17 @@ export function EditorCanvas({
         if (!inter.wallStartCornerId) {
           inter.wallStartCornerId = clickedCorner.id
           onSelectCorner(clickedCorner.id)
-          onStatusHintChange(`Начало стены в [${clickedCorner.id}]. Кликните по второй точке.`)
+          onStatusHintChange(`Начало стены в точке [${clickedCorner.id}]. Кликните следующую точку.`)
         } else {
           if (inter.wallStartCornerId !== clickedCorner.id) {
             onCreateWall(inter.wallStartCornerId, clickedCorner.id)
+            inter.wallStartCornerId = clickedCorner.id
+            onSelectCorner(clickedCorner.id)
+            onStatusHintChange(`Стена построена! Точка [${clickedCorner.id}] закреплена как начало следующей. Esc / ПКМ для завершения.`)
+          } else {
             inter.wallStartCornerId = null
-            onStatusHintChange('Стена создана! Кликните по начальной точке следующей стены.')
+            onSelectCorner(null)
+            onStatusHintChange('Выбор начальной точки стены отменен')
           }
         }
         render()
@@ -913,6 +940,17 @@ export function EditorCanvas({
       } else if (clickedWall) {
         onSelectWall(clickedWall.id)
         return
+      } else {
+        const wx = snap(world.x)
+        const wy = snap(world.y)
+        if (onFastCreateWallCorner) {
+          const newId = onFastCreateWallCorner(wx, wy, inter.wallStartCornerId)
+          inter.wallStartCornerId = newId
+          onSelectCorner(newId)
+          onStatusHintChange(`Точка [${newId}] создана на сетке. Кликните следующую точку или Esc для завершения.`)
+          render()
+          return
+        }
       }
     }
 
@@ -927,11 +965,7 @@ export function EditorCanvas({
         canvas.style.cursor = 'grabbing'
         return
       } else {
-        if (e.shiftKey) {
-          onFastCreateCorner(snap(world.x), snap(world.y))
-        } else {
-          onOpenCornerCreateModal(snap(world.x), snap(world.y))
-        }
+        onFastCreateCorner(snap(world.x), snap(world.y))
         return
       }
     }
@@ -1108,15 +1142,34 @@ export function EditorCanvas({
     }
 
     const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        if (interStateRef.current.wallStartCornerId) {
+          interStateRef.current.wallStartCornerId = null
+          onSelectCorner(null)
+          onStatusHintChange('Построение цепочки стен завершено')
+          render()
+        }
+        if (interStateRef.current.roomDraftCorners.length > 0) {
+          interStateRef.current.roomDraftCorners = []
+          onStatusHintChange('Создание зоны отменено')
+          render()
+        }
+      }
       if (e.key === 'Shift') {
-        canvas.style.cursor = 'crosshair'
-        onStatusHintChange('Режим быстрого спавна: кликайте ЛКМ для создания точек')
+        if (toolRef.current === 'corner') {
+          canvas.style.cursor = 'crosshair'
+          onStatusHintChange('Режим быстрого спавна: кликайте ЛКМ для добавления точек подряд')
+        }
       }
     }
     const onKeyUp = (e: KeyboardEvent) => {
       if (e.key === 'Shift') {
-        canvas.style.cursor = 'default'
-        onStatusHintChange('Курсор: выберите инструмент или перемещайтесь по плану')
+        if (toolRef.current === 'corner') {
+          canvas.style.cursor = 'crosshair'
+          onStatusHintChange('Точка: кликните по холсту для добавления вершины (Shift + ЛКМ для серии)')
+        } else {
+          canvas.style.cursor = 'default'
+        }
       }
     }
 
@@ -1159,6 +1212,11 @@ export function EditorCanvas({
     const clickedRoom = findRoomAt(world.x, world.y)
     if (clickedRoom) {
       onOpenRoomEditModal(clickedRoom)
+      return
+    }
+
+    if (tool === 'corner') {
+      onOpenCornerCreateModal(snap(world.x), snap(world.y))
       return
     }
   }

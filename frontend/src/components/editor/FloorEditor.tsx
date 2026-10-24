@@ -15,6 +15,7 @@ import { PoiEditModal } from './modals/PoiEditModal'
 import { PanoramaEditModal } from './modals/PanoramaEditModal'
 import { PanoramaHelpModal } from './modals/PanoramaHelpModal'
 import { JsonCodeModal } from './modals/JsonCodeModal'
+import { EditorHelpModal } from './modals/EditorHelpModal'
 import { PanoramaViewerModal } from '../PanoramaViewerModal'
 
 interface FloorEditorProps {
@@ -50,11 +51,7 @@ export function FloorEditor({ space, onBack: _onBack, onUpdateSpace }: FloorEdit
         const parsed = JSON.parse(raw)
         if (parsed?.floors?.length > 0) return parsed
       }
-      const draft = localStorage.getItem('ttk_floor_plan_draft')
-      if (draft) {
-        const parsed = JSON.parse(draft)
-        if (parsed?.floors?.length > 0) return parsed
-      }
+      localStorage.removeItem('ttk_floor_plan_draft')
     } catch (_) {}
     return DEFAULT_PLAN
   })
@@ -126,6 +123,7 @@ export function FloorEditor({ space, onBack: _onBack, onUpdateSpace }: FloorEdit
   })
   const [isPanoHelpOpen, setIsPanoHelpOpen] = useState<boolean>(false)
   const [isJsonModalOpen, setIsJsonModalOpen] = useState<boolean>(false)
+  const [isHelpOpen, setIsHelpOpen] = useState<boolean>(false)
   const [viewerPanorama, setViewerPanorama] = useState<PlanPanorama | null>(null)
 
   const currentFloor = plan.floors.find(f => f.id === activeFloorId) || plan.floors[0]
@@ -136,17 +134,6 @@ export function FloorEditor({ space, onBack: _onBack, onUpdateSpace }: FloorEdit
       try {
         const jsonStr = JSON.stringify(currentPlan)
         localStorage.setItem(`spacemap_plan_${space.id}`, jsonStr)
-
-        const hasAnyContent = currentPlan.floors.some(
-          f =>
-            (f.corners && f.corners.length > 0) ||
-            (f.walls && f.walls.length > 0) ||
-            (f.rooms && f.rooms.length > 0) ||
-            (f.panoramas && f.panoramas.length > 0)
-        )
-        if (hasAnyContent) {
-          localStorage.setItem('ttk_floor_plan_draft', jsonStr)
-        }
 
         // Обновляем количество стен в объекте
         const floor0 = currentPlan.floors[0]
@@ -282,6 +269,105 @@ export function FloorEditor({ space, onBack: _onBack, onUpdateSpace }: FloorEdit
     setIsDirty(true)
     setStatusHint(`Точка создана в [${x}, ${y}]. Зажмите Shift для быстрого создания точек.`)
   }, [handleCreateCorner])
+
+  // Быстрое создание точки и продолжение стены прямо по сетке
+  const handleFastCreateWallCorner = useCallback(
+    (x: number, y: number, connectFromId?: string | null): string => {
+      let createdId = '1'
+      const curFloor = plan.floors.find(f => f.id === activeFloorId) || plan.floors[0]
+      if (curFloor) {
+        let maxId = 0
+        curFloor.corners.forEach(c => {
+          const n = parseInt(c.id)
+          if (!isNaN(n) && n > maxId) maxId = n
+        })
+        createdId = (maxId + 1).toString()
+      }
+
+      updateCurrentFloor(floor => {
+        let maxId = 0
+        floor.corners.forEach(c => {
+          const n = parseInt(c.id)
+          if (!isNaN(n) && n > maxId) maxId = n
+        })
+        const newId = (maxId + 1).toString()
+        const newCorner: PlanCorner = { id: newId, x, y }
+        const corners = [...floor.corners, newCorner]
+
+        let walls = [...floor.walls]
+        if (connectFromId) {
+          const exists = walls.some(
+            w =>
+              (w.from === connectFromId && w.to === newId) ||
+              (w.from === newId && w.to === connectFromId)
+          )
+          if (!exists) {
+            walls.push({
+              id: `w_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
+              from: connectFromId,
+              to: newId
+            })
+          }
+        }
+        return { ...floor, corners, walls }
+      })
+
+      setIsDirty(true)
+      setStatusHint(`Создана точка [${createdId}] на сетке`)
+      return createdId
+    },
+    [plan, activeFloorId, updateCurrentFloor]
+  )
+
+  // Добавление базового контура комнаты (4 точки)
+  const handleAddDefaultBox = useCallback(() => {
+    updateCurrentFloor(floor => {
+      let maxId = 0
+      floor.corners.forEach(c => {
+        const n = parseInt(c.id)
+        if (!isNaN(n) && n > maxId) maxId = n
+      })
+      const c1 = (maxId + 1).toString()
+      const c2 = (maxId + 2).toString()
+      const c3 = (maxId + 3).toString()
+      const c4 = (maxId + 4).toString()
+      const newCorners: PlanCorner[] = [
+        { id: c1, x: 100, y: 100 },
+        { id: c2, x: 500, y: 100 },
+        { id: c3, x: 500, y: 400 },
+        { id: c4, x: 100, y: 400 }
+      ]
+      const newWalls = [
+        { id: `w_${Date.now()}_1`, from: c1, to: c2 },
+        { id: `w_${Date.now()}_2`, from: c2, to: c3 },
+        { id: `w_${Date.now()}_3`, from: c3, to: c4 },
+        { id: `w_${Date.now()}_4`, from: c4, to: c1 }
+      ]
+      return {
+        ...floor,
+        corners: [...floor.corners, ...newCorners],
+        walls: [...floor.walls, ...newWalls]
+      }
+    })
+    setIsDirty(true)
+    setStatusHint('Добавлен базовый прямоугольный контур (4 точки, 4 стены)')
+  }, [updateCurrentFloor])
+
+  // Очистка текущего этажа
+  const handleClearFloor = useCallback(() => {
+    if (window.confirm('Очистить все точки, стены и зоны на этом этаже?')) {
+      updateCurrentFloor(floor => ({
+        ...floor,
+        corners: [],
+        walls: [],
+        rooms: [],
+        pois: [],
+        panoramas: []
+      }))
+      setIsDirty(true)
+      setStatusHint('Этаж полностью очищен')
+    }
+  }, [updateCurrentFloor])
 
   const handleCornerMove = (cornerId: string, x: number, y: number) => {
     updateCurrentFloor(floor => ({
@@ -560,6 +646,7 @@ export function FloorEditor({ space, onBack: _onBack, onUpdateSpace }: FloorEdit
         onImportJson={handleImportJson}
         onOpenJsonModal={() => setIsJsonModalOpen(true)}
         isDirty={isDirty}
+        onOpenHelp={() => setIsHelpOpen(true)}
       />
 
       {/* Основная рабочая область: Сайдбар + Канвас */}
@@ -608,6 +695,8 @@ export function FloorEditor({ space, onBack: _onBack, onUpdateSpace }: FloorEdit
           onViewPano={pano => setViewerPanorama(pano)}
           onDeletePano={handleDeletePano}
           onOpenPanoHelp={() => setIsPanoHelpOpen(true)}
+          onAddDefaultBox={handleAddDefaultBox}
+          onClearFloor={handleClearFloor}
           onStartCreatePano={() =>
             setModalPanoEdit({
               isOpen: true,
@@ -643,6 +732,7 @@ export function FloorEditor({ space, onBack: _onBack, onUpdateSpace }: FloorEdit
           onDeletePoi={handleDeletePoi}
           onDeletePano={handleDeletePano}
           onFastCreateCorner={handleFastCreateCorner}
+          onFastCreateWallCorner={handleFastCreateWallCorner}
           onOpenCornerCreateModal={(x, y) => setModalCornerCreate({ isOpen: true, x, y })}
           onOpenCornerEditModal={corner => setModalCornerEdit({ isOpen: true, corner })}
           onOpenRoomCreateModal={cornerIds =>
@@ -666,6 +756,25 @@ export function FloorEditor({ space, onBack: _onBack, onUpdateSpace }: FloorEdit
           onCursorMove={setCursorCoords}
           onStatusHintChange={setStatusHint}
         />
+      {/* Минималистичная плашка подсказки режима */}
+        <div className="absolute top-3 left-1/2 -translate-x-1/2 z-10 pointer-events-none flex items-center gap-2 bg-slate-900/90 backdrop-blur-md px-3.5 py-1.5 rounded-full border border-slate-700/80 text-slate-200 text-xs shadow-lg">
+          <span className="size-2 rounded-full bg-red-500 animate-pulse shrink-0" />
+          <span className="font-medium text-slate-300">
+            {tool === 'corner' && 'Точка: клик по сетке (Shift+ЛКМ для серии)'}
+            {tool === 'wall' && 'Стена: кликайте точки для непрерывной линии · Esc/ПКМ — стоп'}
+            {tool === 'room' && 'Зона: кликайте точки по часовой стрелке, замкните'}
+            {tool === 'select' && 'Курсор: клик для выбора, перетаскивание для перемещения'}
+            {tool === 'poi' && 'POI: кликните на плане для точки интереса'}
+            {tool === 'pano' && '360°: кликните на плане для создания панорамы'}
+            {tool === 'delete' && 'Удаление: кликните по любому элементу для удаления'}
+          </span>
+          <button
+            onClick={() => setIsHelpOpen(true)}
+            className="pointer-events-auto ml-1 text-[11px] text-red-400 hover:text-red-300 underline font-semibold cursor-pointer"
+          >
+            Справка (?)
+          </button>
+        </div>
       </div>
 
       {/* Нижняя строка статуса */}
@@ -732,6 +841,8 @@ export function FloorEditor({ space, onBack: _onBack, onUpdateSpace }: FloorEdit
         isOpen={isPanoHelpOpen}
         onClose={() => setIsPanoHelpOpen(false)}
       />
+
+      <EditorHelpModal isOpen={isHelpOpen} onClose={() => setIsHelpOpen(false)} />
 
       <JsonCodeModal
         isOpen={isJsonModalOpen}

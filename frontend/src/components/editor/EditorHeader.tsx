@@ -17,6 +17,7 @@ import {
 
 interface EditorHeaderProps {
   tool: EditorTool
+  onOpenHelp?: () => void
   onSelectTool: (tool: EditorTool) => void
   onSave: () => void
   onExportJson: () => void
@@ -28,6 +29,7 @@ interface EditorHeaderProps {
 export function EditorHeader({
   tool,
   onSelectTool,
+  onOpenHelp,
   onSave,
   onExportJson,
   onImportJson,
@@ -125,6 +127,17 @@ export function EditorHeader({
 
       {/* Сохранение / Импорт / Экспорт */}
       <div className="flex items-center gap-1.5 shrink-0">
+        <button
+          onClick={onOpenHelp}
+          className="bg-slate-700/80 hover:bg-slate-700 text-slate-300 hover:text-white px-2.5 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition border border-slate-600 cursor-pointer"
+          title="Горячие клавиши и подсказки по инструментам"
+        >
+          <span className="flex items-center justify-center size-3.5 rounded-full bg-red-600/20 text-red-400 text-[10px] font-black border border-red-500/30">
+            ?
+          </span>
+          <span className="hidden sm:inline">Подсказки</span>
+        </button>
+
         <button
           onClick={onSave}
           className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition shadow cursor-pointer ${
