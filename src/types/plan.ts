@@ -17,6 +17,8 @@ export interface PlanPoi {
   category: string
   x: number
   y: number
+  description?: string
+  room_id?: string
 }
 
 export interface PlanRoom {
@@ -33,6 +35,7 @@ export interface PlanPanorama {
   x: number
   y: number
   image?: string
+  image_data?: string
   room_id?: string
 }
 

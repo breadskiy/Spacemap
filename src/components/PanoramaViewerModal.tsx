@@ -98,8 +98,8 @@ export function PanoramaViewerModal({
     handleResize()
     window.addEventListener('resize', handleResize)
 
-    // Загрузка панорамной текстуры
-    const imgSrc = panorama.image || generatePlaceholderTexture(panorama.name || roomName)
+    // Загрузка панорамной текстуры (поддержка image_data и image)
+    const imgSrc = panorama.image_data || panorama.image || generatePlaceholderTexture(panorama.name || roomName)
     const img = new Image()
     img.crossOrigin = 'anonymous'
     img.onload = () => {

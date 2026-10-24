@@ -85,7 +85,7 @@ export function ViewerView({ space, onBack }: ViewerViewProps) {
       const draft = localStorage.getItem('ttk_floor_plan_draft')
       if (draft) {
         const parsed: PlanData = JSON.parse(draft)
-        if (parsed.floors && parsed.floors.length > 0 && parsed.floors.some(f => (f.walls?.length > 0 || f.corners?.length > 0 || (f.rooms && f.rooms.length > 0)))) {
+        if (parsed.floors && parsed.floors.length > 0 && parsed.floors.some(f => (f.walls?.length > 0 || f.corners?.length > 0 || (f.rooms && f.rooms.length > 0) || (f.panoramas && f.panoramas.length > 0)))) {
           setPlan(parsed)
           setActiveFloorId(parsed.floors[0].id)
           return
@@ -96,7 +96,7 @@ export function ViewerView({ space, onBack }: ViewerViewProps) {
         const k = localStorage.key(i)
         if (k && k.startsWith('spacemap_plan_')) {
           const val = localStorage.getItem(k)
-          if (val && (val.includes('"walls"') || val.includes('"corners"'))) {
+          if (val && (val.includes('"walls"') || val.includes('"corners"') || val.includes('"panoramas"'))) {
             const parsed: PlanData = JSON.parse(val)
             if (parsed.floors && parsed.floors.length > 0) {
               setPlan(parsed)
@@ -374,74 +374,77 @@ export function ViewerView({ space, onBack }: ViewerViewProps) {
         currentFloor.panoramas.forEach(pano => {
           const pos = worldToCanvas(pano.x, pano.y)
           const isHovered = hoveredPanoId === pano.id
-          const radius = (isHovered ? 13 : 10.5) / zoomRef.current
+          const radius = (isHovered ? 14 : 11.5) / zoomRef.current
 
           ctx.save()
 
-          // Внешнее свечение при наведении
-          if (isHovered) {
-            ctx.beginPath()
-            ctx.arc(pos.x, pos.y, radius + 4 / zoomRef.current, 0, Math.PI * 2)
-            ctx.fillStyle = 'rgba(99, 102, 241, 0.35)'
-            ctx.fill()
-          }
+          // 1. Внешнее свечение / пульсирующее кольцо радара 360°
+          ctx.beginPath()
+          ctx.arc(pos.x, pos.y, (isHovered ? 23 : 17.5) / zoomRef.current, 0, Math.PI * 2)
+          ctx.fillStyle = isHovered ? 'rgba(99, 102, 241, 0.32)' : 'rgba(99, 102, 241, 0.16)'
+          ctx.fill()
+          ctx.strokeStyle = isHovered ? 'rgba(99, 102, 241, 0.75)' : 'rgba(99, 102, 241, 0.35)'
+          ctx.lineWidth = 1.5 / zoomRef.current
+          ctx.stroke()
 
-          // Тень
+          // 2. Тень маркера
           ctx.beginPath()
           ctx.arc(pos.x, pos.y + 2 / zoomRef.current, radius + 1 / zoomRef.current, 0, Math.PI * 2)
-          ctx.fillStyle = 'rgba(0, 0, 0, 0.35)'
+          ctx.fillStyle = 'rgba(15, 23, 42, 0.22)'
           ctx.fill()
 
-          // Основной маркер камеры (индиго)
+          // 3. Основной диск камеры (насыщенный индиго)
           ctx.beginPath()
           ctx.arc(pos.x, pos.y, radius, 0, Math.PI * 2)
-          ctx.fillStyle = isHovered ? '#6366f1' : '#4f46e5'
+          ctx.fillStyle = isHovered ? '#4338ca' : '#4f46e5'
           ctx.strokeStyle = '#ffffff'
           ctx.lineWidth = 2.5 / zoomRef.current
           ctx.fill()
           ctx.stroke()
 
-          // Объектив камеры
-          const lensR = radius * 0.45
+          // 4. Линза объектива
+          const lensR = radius * 0.46
           ctx.beginPath()
           ctx.arc(pos.x, pos.y, lensR, 0, Math.PI * 2)
           ctx.fillStyle = '#1e1b4b'
-          ctx.strokeStyle = '#ffffff'
+          ctx.strokeStyle = '#c7d2fe'
           ctx.lineWidth = 1.2 / zoomRef.current
           ctx.fill()
           ctx.stroke()
 
           // Блик на линзе
           ctx.beginPath()
-          ctx.arc(pos.x - lensR * 0.35, pos.y - lensR * 0.35, lensR * 0.25, 0, Math.PI * 2)
-          ctx.fillStyle = '#a5b4fc'
+          ctx.arc(pos.x - lensR * 0.35, pos.y - lensR * 0.35, lensR * 0.28, 0, Math.PI * 2)
+          ctx.fillStyle = '#ffffff'
           ctx.fill()
 
-          // Бейдж с названием и 360° при наведении
-          if (isHovered) {
-            ctx.save()
-            const fontSize = Math.max(10, 11 / zoomRef.current)
-            ctx.font = `600 ${fontSize}px sans-serif`
-            const text = `📷 360°: ${pano.name || 'Панорама'}`
-            const textW = ctx.measureText(text).width
-            const badgeH = 19 / zoomRef.current
-            const badgeY = pos.y + (18 / zoomRef.current)
-            const badgeW = textW + (14 / zoomRef.current)
+          // 5. Всегда видимая плашка с обозначением 360° под маркером
+          ctx.save()
+          const fontSize = Math.max(9, (isHovered ? 11 : 9.5) / zoomRef.current)
+          ctx.font = `700 ${fontSize}px sans-serif`
+          const labelText = isHovered ? `📸 360°: ${pano.name || 'Панорама'}` : '📸 360°'
+          const textW = ctx.measureText(labelText).width
+          const badgeH = (isHovered ? 21 : 16) / zoomRef.current
+          const badgeY = pos.y + ((isHovered ? 23 : 18.5) / zoomRef.current)
+          const badgeW = textW + ((isHovered ? 14 : 10) / zoomRef.current)
 
-            ctx.fillStyle = '#1e1b4b'
-            ctx.strokeStyle = '#6366f1'
-            ctx.lineWidth = 1 / zoomRef.current
-            ctx.beginPath()
-            ctx.roundRect(pos.x - badgeW / 2, badgeY - badgeH / 2, badgeW, badgeH, 6 / zoomRef.current)
-            ctx.fill()
-            ctx.stroke()
+          ctx.shadowColor = 'rgba(15, 23, 42, 0.12)'
+          ctx.shadowBlur = 4 / zoomRef.current
+          ctx.shadowOffsetY = 1 / zoomRef.current
 
-            ctx.fillStyle = '#ffffff'
-            ctx.textAlign = 'center'
-            ctx.textBaseline = 'middle'
-            ctx.fillText(text, pos.x, badgeY)
-            ctx.restore()
-          }
+          ctx.fillStyle = isHovered ? '#1e1b4b' : '#ffffff'
+          ctx.strokeStyle = isHovered ? '#6366f1' : '#c7d2fe'
+          ctx.lineWidth = 1 / zoomRef.current
+          ctx.beginPath()
+          ctx.roundRect(pos.x - badgeW / 2, badgeY - badgeH / 2, badgeW, badgeH, 5 / zoomRef.current)
+          ctx.fill()
+          ctx.stroke()
+
+          ctx.fillStyle = isHovered ? '#ffffff' : '#4338ca'
+          ctx.textAlign = 'center'
+          ctx.textBaseline = 'middle'
+          ctx.fillText(labelText, pos.x, badgeY)
+          ctx.restore()
 
           ctx.restore()
         })
@@ -783,24 +786,37 @@ export function ViewerView({ space, onBack }: ViewerViewProps) {
           </div>
         </div>
 
-        {/* Переключатель этажей (если их больше 1) */}
-        {plan && plan.floors.length > 1 && (
-          <div className="flex items-center gap-1 bg-[#f4f4f6] p-1 rounded-full border border-[#e9e9ec]">
-            {plan.floors.map(floor => (
-              <button
-                key={floor.id}
-                onClick={() => setActiveFloorId(floor.id)}
-                className={`px-3 py-1 text-xs font-bold rounded-full transition ${
-                  activeFloorId === floor.id
-                    ? 'bg-white text-[#111113] shadow-xs'
-                    : 'text-[#6b6b70] hover:text-[#111113]'
-                }`}
-              >
-                {floor.name}
-              </button>
-            ))}
-          </div>
-        )}
+        {/* Переключатель этажей и панорамы */}
+        <div className="flex items-center gap-2">
+          {currentFloor?.panoramas && currentFloor.panoramas.length > 0 && (
+            <button
+              onClick={() => setSelectedPanorama(currentFloor.panoramas![0])}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 text-indigo-700 text-xs font-bold transition cursor-pointer shadow-xs"
+              title="Открыть интерактивную панораму 360°"
+            >
+              <span>📸</span>
+              <span>Панорамы ({currentFloor.panoramas.length})</span>
+            </button>
+          )}
+
+          {plan && plan.floors.length > 1 && (
+            <div className="flex items-center gap-1 bg-[#f4f4f6] p-1 rounded-full border border-[#e9e9ec]">
+              {plan.floors.map(floor => (
+                <button
+                  key={floor.id}
+                  onClick={() => setActiveFloorId(floor.id)}
+                  className={`px-3 py-1 text-xs font-bold rounded-full transition ${
+                    activeFloorId === floor.id
+                      ? 'bg-white text-[#111113] shadow-xs'
+                      : 'text-[#6b6b70] hover:text-[#111113]'
+                  }`}
+                >
+                  {floor.name}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
       </header>
 
       {/* 2. ПАНЕЛЬ МАРШРУТА: ПОЛЬЗОВАТЕЛЬ САМ СТАВИТ ТОЧКУ А И ТОЧКУ Б */}
@@ -918,6 +934,31 @@ export function ViewerView({ space, onBack }: ViewerViewProps) {
       >
         <canvas ref={canvasRef} className="w-full h-full block" />
 
+        {/* Плавающий виджет 360° панорам, если на этаже есть панорамы */}
+        {currentFloor?.panoramas && currentFloor.panoramas.length > 0 && !selectedPoi && (
+          <div className="absolute bottom-6 left-6 z-20 pointer-events-auto">
+            <div className="bg-white/95 backdrop-blur-md rounded-2xl border border-indigo-200 p-2 sm:p-2.5 shadow-xl flex items-center gap-2.5">
+              <div className="size-8 rounded-xl bg-indigo-600 text-white flex items-center justify-center text-sm font-bold shadow-xs">
+                📸
+              </div>
+              <div>
+                <div className="text-xs font-bold text-[#111113]">
+                  Панорамы 360° ({currentFloor.panoramas.length})
+                </div>
+                <div className="text-[10px] text-[#6b6b70] truncate max-w-[150px]">
+                  {currentFloor.panoramas[0].name || 'Сферический тур'}
+                </div>
+              </div>
+              <button
+                onClick={() => setSelectedPanorama(currentFloor.panoramas![0])}
+                className="ml-1 px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold transition shadow-xs cursor-pointer"
+              >
+                Смотреть
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Кнопки зума справа снизу */}
         <div className="absolute bottom-6 right-6 flex flex-col gap-2 z-20">
           <button
@@ -967,15 +1008,36 @@ export function ViewerView({ space, onBack }: ViewerViewProps) {
               {selectedPoi.name}
             </h3>
 
-            {/* Заглушка 360 панорамы */}
-            <div className="mb-4 p-2.5 rounded-2xl bg-[#fafafa] border border-dashed border-[#e2e8f0] flex items-center justify-between">
-              <span className="text-xs font-semibold text-[#6b6b70] flex items-center gap-1.5">
-                <span className="text-xs">📸</span> 360° панорама стенда
-              </span>
-              <span className="text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200 px-2 py-0.5 rounded-full">
-                в разработке
-              </span>
-            </div>
+            {/* Краткая информация / описание (если есть) */}
+            {selectedPoi.description && (
+              <div className="mb-3 p-3 rounded-2xl bg-[#fafafa] border border-[#e9e9ec] text-xs text-[#6b6b70] leading-relaxed">
+                {selectedPoi.description}
+              </div>
+            )}
+
+            {/* Связанная 360° панорама стенда / комнаты (если есть) */}
+            {(() => {
+              const linkedPano = currentFloor?.panoramas?.find(p => 
+                (selectedPoi.room_id && p.room_id === selectedPoi.room_id) || 
+                Math.hypot(p.x - selectedPoi.x, p.y - selectedPoi.y) <= 120
+              )
+              if (!linkedPano) return null
+              return (
+                <button
+                  type="button"
+                  onClick={() => setSelectedPanorama(linkedPano)}
+                  className="mb-3 w-full p-2.5 rounded-2xl bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 text-indigo-700 text-xs font-semibold flex items-center justify-between transition cursor-pointer group"
+                >
+                  <span className="flex items-center gap-2 truncate">
+                    <span className="text-sm">📸</span>
+                    <span className="truncate">360°: {linkedPano.name}</span>
+                  </span>
+                  <span className="text-[11px] font-bold px-2.5 py-0.5 bg-indigo-600 text-white rounded-full group-hover:bg-indigo-700 transition shrink-0">
+                    Смотреть
+                  </span>
+                </button>
+              )
+            })()}
 
             {/* Кнопки быстрой установки точек А и Б */}
             <div className="grid grid-cols-2 gap-2">
