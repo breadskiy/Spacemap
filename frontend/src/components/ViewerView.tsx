@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import type { SpaceObject } from '../types/space'
 import type { PlanData, PlanFloor, PlanPoi, PlanCorner, PlanPanorama } from '../types/plan'
 import { PanoramaViewerModal } from './PanoramaViewerModal'
+import { findNavRoute, tracePartialPath, getPointAlongPath, type PathResult } from '../utils/pathfinding'
 
 interface ViewerViewProps {
   space: SpaceObject
@@ -56,6 +57,21 @@ export function ViewerView({ space, onBack }: ViewerViewProps) {
   // Установленные точки А и Б
   const [pointA, setPointA] = useState<{ x: number; y: number; name: string } | null>(null)
   const [pointB, setPointB] = useState<{ x: number; y: number; name: string } | null>(null)
+
+  // Навигация и построение маршрута
+  const [navRoute, setNavRoute] = useState<PathResult | null>(null)
+  const [isNavigating, setIsNavigating] = useState(false)
+  const [routeError, setRouteError] = useState<string | null>(null)
+
+  // Анимационные ссылки
+  const routeProgressRef = useRef(1)
+  const dashOffsetRef = useRef(0)
+  const walkerProgressRef = useRef(0)
+  const animFrameRef = useRef<number | null>(null)
+  const navRouteRef = useRef<PathResult | null>(null)
+  const isNavigatingRef = useRef(false)
+  navRouteRef.current = navRoute
+  isNavigatingRef.current = isNavigating
 
   // Преобразования камеры
   const [pan, setPan] = useState<{ x: number; y: number }>({ x: 200, y: 350 })
@@ -425,6 +441,90 @@ export function ViewerView({ space, onBack }: ViewerViewProps) {
         })
       }
 
+      // 4.9. ЛИНИЯ МАРШРУТА С ОБХОДОМ СТЕН И ОТСТУПОМ
+      const activeRoute = navRouteRef.current
+      if (activeRoute && activeRoute.path.length >= 2) {
+        const path = activeRoute.path
+        const progress = isNavigatingRef.current ? routeProgressRef.current : 1
+
+        ctx.save()
+        ctx.lineCap = 'round'
+        ctx.lineJoin = 'round'
+
+        // 1. Внешнее мягкое неоновое свечение (halo)
+        ctx.strokeStyle = 'rgba(227, 6, 19, 0.22)'
+        ctx.lineWidth = 14 / zoomRef.current
+        ctx.beginPath()
+        tracePartialPath(ctx, path, progress, worldToCanvas)
+        ctx.stroke()
+
+        // 2. Основная яркая линия маршрута (фирменный TTK красный)
+        ctx.strokeStyle = '#e30613'
+        ctx.lineWidth = 5.5 / zoomRef.current
+        ctx.beginPath()
+        tracePartialPath(ctx, path, progress, worldToCanvas)
+        ctx.stroke()
+
+        // 3. Бегущие белые пунктирные штрихи направления движения
+        if (progress > 0.05) {
+          ctx.save()
+          ctx.strokeStyle = '#ffffff'
+          ctx.lineWidth = 2.4 / zoomRef.current
+          ctx.setLineDash([7 / zoomRef.current, 7 / zoomRef.current])
+          ctx.lineDashOffset = -dashOffsetRef.current
+          ctx.beginPath()
+          tracePartialPath(ctx, path, progress, worldToCanvas)
+          ctx.stroke()
+          ctx.restore()
+        }
+
+        // 4. Узловые маркеры поворотов обхода стен
+        if (progress >= 0.95 && path.length > 2) {
+          for (let i = 1; i < path.length - 1; i++) {
+            const pt = worldToCanvas(path[i].x, path[i].y)
+            ctx.beginPath()
+            ctx.arc(pt.x, pt.y, 3.5 / zoomRef.current, 0, Math.PI * 2)
+            ctx.fillStyle = '#ffffff'
+            ctx.fill()
+            ctx.strokeStyle = '#e30613'
+            ctx.lineWidth = 1.5 / zoomRef.current
+            ctx.stroke()
+          }
+        }
+
+        // 5. Анимированный идущий маркер (пульсирующая точка навигации)
+        if (isNavigatingRef.current && progress >= 0.95) {
+          const walker = getPointAlongPath(path, walkerProgressRef.current)
+          if (walker) {
+            const wPos = worldToCanvas(walker.x, walker.y)
+            ctx.save()
+            // Свечение пульсации
+            ctx.beginPath()
+            ctx.arc(wPos.x, wPos.y, 11 / zoomRef.current, 0, Math.PI * 2)
+            ctx.fillStyle = 'rgba(227, 6, 19, 0.35)'
+            ctx.fill()
+
+            // Яркий белый диск с красным ободком
+            ctx.beginPath()
+            ctx.arc(wPos.x, wPos.y, 6.5 / zoomRef.current, 0, Math.PI * 2)
+            ctx.fillStyle = '#ffffff'
+            ctx.fill()
+            ctx.strokeStyle = '#e30613'
+            ctx.lineWidth = 2.5 / zoomRef.current
+            ctx.stroke()
+
+            // Центральная точка
+            ctx.beginPath()
+            ctx.arc(wPos.x, wPos.y, 2.5 / zoomRef.current, 0, Math.PI * 2)
+            ctx.fillStyle = '#e30613'
+            ctx.fill()
+            ctx.restore()
+          }
+        }
+
+        ctx.restore()
+      }
+
       // 5. Маркер точки А (зеленый круг со стайлингом) — БЕЗ ЛИНИЙ И БЕЗ ТЕКСТОВ НАД НИМИ
       if (pointA) {
         const posA = worldToCanvas(pointA.x, pointA.y)
@@ -478,6 +578,31 @@ export function ViewerView({ space, onBack }: ViewerViewProps) {
         ctx.textAlign = 'center'
         ctx.textBaseline = 'middle'
         ctx.fillText('B', posB.x, posB.y)
+
+        // Бейдж расстояния и времени над точкой B при построенном маршруте
+        if (activeRoute) {
+          const fontSize = Math.max(9, 10 / zoomRef.current)
+          ctx.font = `bold ${fontSize}px sans-serif`
+          const label = `🏁 ${activeRoute.distanceMeters} м (~${activeRoute.estimatedMinutes} мин)`
+          const textW = ctx.measureText(label).width
+          const badgeH = 18 / zoomRef.current
+          const badgeY = posB.y - (20 / zoomRef.current)
+          const badgeW = textW + (14 / zoomRef.current)
+
+          ctx.shadowColor = 'rgba(15, 23, 42, 0.16)'
+          ctx.shadowBlur = 4 / zoomRef.current
+          ctx.shadowOffsetY = 1 / zoomRef.current
+
+          ctx.fillStyle = '#0f172a'
+          ctx.beginPath()
+          ctx.roundRect(posB.x - badgeW / 2, badgeY - badgeH / 2, badgeW, badgeH, 5 / zoomRef.current)
+          ctx.fill()
+
+          ctx.fillStyle = '#ffffff'
+          ctx.textAlign = 'center'
+          ctx.textBaseline = 'middle'
+          ctx.fillText(label, posB.x, badgeY)
+        }
         ctx.restore()
       }
     }
@@ -516,7 +641,53 @@ export function ViewerView({ space, onBack }: ViewerViewProps) {
 
   useEffect(() => {
     draw()
-  }, [pan, zoom, activeFloorId, selectedPoi, pointA, pointB, hoveredPoiId, hoveredPanoId])
+  }, [pan, zoom, activeFloorId, selectedPoi, pointA, pointB, hoveredPoiId, hoveredPanoId, navRoute, isNavigating])
+
+  // Анимационный цикл навигации по маршруту
+  useEffect(() => {
+    if (!isNavigating || !navRoute) {
+      if (animFrameRef.current) {
+        cancelAnimationFrame(animFrameRef.current)
+        animFrameRef.current = null
+      }
+      return
+    }
+
+    let lastTime = performance.now()
+    let progress = 0
+    routeProgressRef.current = 0
+
+    const animate = (now: number) => {
+      const dt = Math.min(0.1, (now - lastTime) / 1000)
+      lastTime = now
+
+      // Линия маршрута плавно вычерчивается от старта к финишу (за ~0.7 сек)
+      if (progress < 1) {
+        progress = Math.min(1, progress + dt * 1.5)
+        routeProgressRef.current = progress
+      }
+
+      // Бегущие пунктирные штрихи
+      dashOffsetRef.current = (dashOffsetRef.current + dt * 26) % 30
+
+      // Перемещение маркера пешехода по маршруту (цикл)
+      if (progress >= 1) {
+        walkerProgressRef.current = (walkerProgressRef.current + dt * 0.2) % 1
+      }
+
+      draw()
+      animFrameRef.current = requestAnimationFrame(animate)
+    }
+
+    animFrameRef.current = requestAnimationFrame(animate)
+
+    return () => {
+      if (animFrameRef.current) {
+        cancelAnimationFrame(animFrameRef.current)
+        animFrameRef.current = null
+      }
+    }
+  }, [isNavigating, navRoute])
 
   // Интерактивные клики и перемещение
   useEffect(() => {
@@ -538,6 +709,9 @@ export function ViewerView({ space, onBack }: ViewerViewProps) {
         const clickedPoi = currentFloor?.pois.find(p => Math.hypot(p.x - world.x, p.y - world.y) <= 22 / zoomRef.current)
         const nameA = clickedPoi ? clickedPoi.name : 'Точка А (Старт)'
         setPointA({ x: clickedPoi ? clickedPoi.x : Math.round(world.x), y: clickedPoi ? clickedPoi.y : Math.round(world.y), name: nameA })
+        setNavRoute(null)
+        setIsNavigating(false)
+        setRouteError(null)
         setRoutingStep('pickB')
         return
       }
@@ -546,6 +720,9 @@ export function ViewerView({ space, onBack }: ViewerViewProps) {
         const clickedPoi = currentFloor?.pois.find(p => Math.hypot(p.x - world.x, p.y - world.y) <= 22 / zoomRef.current)
         const nameB = clickedPoi ? clickedPoi.name : 'Точка Б (Финиш)'
         setPointB({ x: clickedPoi ? clickedPoi.x : Math.round(world.x), y: clickedPoi ? clickedPoi.y : Math.round(world.y), name: nameB })
+        setNavRoute(null)
+        setIsNavigating(false)
+        setRouteError(null)
         setRoutingStep('idle')
         return
       }
@@ -632,6 +809,9 @@ export function ViewerView({ space, onBack }: ViewerViewProps) {
           const clickedPoi = currentFloor?.pois.find(p => Math.hypot(p.x - world.x, p.y - world.y) <= 24 / zoomRef.current)
           const nameA = clickedPoi ? clickedPoi.name : 'Точка А (Старт)'
           setPointA({ x: clickedPoi ? clickedPoi.x : Math.round(world.x), y: clickedPoi ? clickedPoi.y : Math.round(world.y), name: nameA })
+          setNavRoute(null)
+          setIsNavigating(false)
+          setRouteError(null)
           setRoutingStep('pickB')
           return
         }
@@ -640,6 +820,9 @@ export function ViewerView({ space, onBack }: ViewerViewProps) {
           const clickedPoi = currentFloor?.pois.find(p => Math.hypot(p.x - world.x, p.y - world.y) <= 24 / zoomRef.current)
           const nameB = clickedPoi ? clickedPoi.name : 'Точка Б (Финиш)'
           setPointB({ x: clickedPoi ? clickedPoi.x : Math.round(world.x), y: clickedPoi ? clickedPoi.y : Math.round(world.y), name: nameB })
+          setNavRoute(null)
+          setIsNavigating(false)
+          setRouteError(null)
           setRoutingStep('idle')
           return
         }
@@ -724,13 +907,48 @@ export function ViewerView({ space, onBack }: ViewerViewProps) {
   // Начать интерактивную установку маршрута
   const startRoutePicking = () => {
     setSelectedPoi(null)
+    setNavRoute(null)
+    setIsNavigating(false)
+    setRouteError(null)
+    setPointA(null)
+    setPointB(null)
     setRoutingStep('pickA')
+  }
+
+  // Запуск построения маршрута с обходом препятствий
+  const handleStartRoute = () => {
+    if (!pointA || !pointB || !currentFloor) return
+    setRouteError(null)
+
+    // Запускаем поиск маршрута с безопасным отступом от стен (22 единицы)
+    const result = findNavRoute(pointA, pointB, currentFloor.walls || [], currentFloor.corners || [], 22)
+
+    if (!result || !result.success || result.path.length < 2) {
+      setRouteError('Маршрут заблокирован стенами. Нет безопасного прохода между выбранными точками.')
+      setNavRoute(null)
+      setIsNavigating(false)
+      return
+    }
+
+    setNavRoute(result)
+    routeProgressRef.current = 0
+    dashOffsetRef.current = 0
+    walkerProgressRef.current = 0
+    setIsNavigating(true)
+  }
+
+  // Остановка навигации
+  const handleStopRoute = () => {
+    setIsNavigating(false)
   }
 
   // Сброс маршрута
   const handleResetRoute = () => {
     setPointA(null)
     setPointB(null)
+    setNavRoute(null)
+    setIsNavigating(false)
+    setRouteError(null)
     setRoutingStep('idle')
   }
 
@@ -779,7 +997,10 @@ export function ViewerView({ space, onBack }: ViewerViewProps) {
               {plan.floors.map(floor => (
                 <button
                   key={floor.id}
-                  onClick={() => setActiveFloorId(floor.id)}
+                  onClick={() => {
+                    setActiveFloorId(floor.id)
+                    handleResetRoute()
+                  }}
                   className={`px-3 py-1 text-xs font-bold rounded-full transition ${
                     activeFloorId === floor.id
                       ? 'bg-white text-[#111113] shadow-xs'
@@ -840,48 +1061,108 @@ export function ViewerView({ space, onBack }: ViewerViewProps) {
 
         {/* В. Обычное состояние: кнопка «Построить маршрут» или статус уже выбранных точек */}
         {routingStep === 'idle' && (
-          pointA || pointB ? (
-            <div className="bg-white/95 backdrop-blur-md rounded-2xl border border-[#e9e9ec] p-3 shadow-xl flex items-center justify-between gap-3">
-              <div className="flex items-center gap-2 overflow-hidden text-xs">
-                {/* Точка А */}
-                <div className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-emerald-50 border border-emerald-200 truncate">
-                  <span className="size-4 rounded-full bg-emerald-500 text-white font-black text-[9px] flex items-center justify-center shrink-0">
-                    A
-                  </span>
-                  <span className="font-semibold text-emerald-800 truncate">
-                    {pointA ? pointA.name : 'Не выбрана'}
-                  </span>
+          (pointA || pointB) ? (
+            <div className="flex flex-col gap-2">
+              <div className="bg-white/95 backdrop-blur-md rounded-2xl border border-[#e9e9ec] p-2.5 sm:p-3 shadow-xl flex items-center justify-between gap-2.5 sm:gap-3">
+                <div className="flex items-center gap-1.5 sm:gap-2 overflow-hidden text-xs flex-1 min-w-0">
+                  {/* Точка А */}
+                  <div className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-emerald-50 border border-emerald-200 truncate">
+                    <span className="size-4 rounded-full bg-emerald-500 text-white font-black text-[9px] flex items-center justify-center shrink-0">
+                      A
+                    </span>
+                    <span className="font-semibold text-emerald-800 truncate max-w-[85px] sm:max-w-[120px]">
+                      {pointA ? pointA.name : 'Не выбрана'}
+                    </span>
+                  </div>
+
+                  <span className="text-[#9e9ea4] shrink-0">➔</span>
+
+                  {/* Точка Б */}
+                  <div className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-red-50 border border-red-200 truncate">
+                    <span className="size-4 rounded-full bg-[#e30613] text-white font-black text-[9px] flex items-center justify-center shrink-0">
+                      B
+                    </span>
+                    <span className="font-semibold text-red-800 truncate max-w-[85px] sm:max-w-[120px]">
+                      {pointB ? pointB.name : 'Не выбрана'}
+                    </span>
+                  </div>
                 </div>
 
-                <span className="text-[#9e9ea4]">➔</span>
+                {/* Действия: кнопка СТАРТ при двух точках либо выбор недостающей точки */}
+                <div className="flex items-center gap-1.5 shrink-0">
+                  {pointA && pointB && (
+                    !isNavigating ? (
+                      <button
+                        onClick={handleStartRoute}
+                        className="inline-flex items-center gap-1.5 px-3.5 py-1.5 sm:px-4 sm:py-2 rounded-xl bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-700 hover:to-emerald-600 text-white font-black text-xs shadow-md shadow-emerald-500/25 transition-all hover:scale-105 active:scale-95 cursor-pointer"
+                        title="Построить маршрут с безопасным отступом от стен"
+                      >
+                        <svg className="size-3.5 fill-current" viewBox="0 0 24 24">
+                          <path d="M8 5v14l11-7z" />
+                        </svg>
+                        <span>Старт</span>
+                      </button>
+                    ) : (
+                      <div className="flex items-center gap-1.5">
+                        {navRoute && (
+                          <div className="hidden sm:flex items-center gap-1 text-[11px] font-bold text-emerald-800 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-lg shadow-2xs">
+                            <span>🚶</span>
+                            <span>{navRoute.distanceMeters} м (~{navRoute.estimatedMinutes} мин)</span>
+                          </div>
+                        )}
+                        <button
+                          onClick={handleStopRoute}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-50 hover:bg-amber-100 border border-amber-200 text-amber-800 font-bold text-xs transition cursor-pointer"
+                          title="Остановить движение"
+                        >
+                          <span className="size-2 rounded-full bg-amber-500 animate-ping" />
+                          <span>Стоп</span>
+                        </button>
+                      </div>
+                    )
+                  )}
 
-                {/* Точка Б */}
-                <div className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-red-50 border border-red-200 truncate">
-                  <span className="size-4 rounded-full bg-[#e30613] text-white font-black text-[9px] flex items-center justify-center shrink-0">
-                    B
-                  </span>
-                  <span className="font-semibold text-red-800 truncate">
-                    {pointB ? pointB.name : 'Не выбрана'}
-                  </span>
+                  {(!pointA || !pointB) && (
+                    <button
+                      onClick={() => setRoutingStep(!pointA ? 'pickA' : 'pickB')}
+                      className="px-2.5 py-1.5 rounded-xl bg-indigo-50 border border-indigo-200 text-indigo-700 font-bold text-xs hover:bg-indigo-100 transition cursor-pointer"
+                    >
+                      {!pointA ? '+ Точка А' : '+ Точка Б'}
+                    </button>
+                  )}
+
+                  <button
+                    onClick={startRoutePicking}
+                    className="text-xs text-[#111113] hover:text-[#e30613] font-semibold px-2 py-1.5 rounded-lg hover:bg-[#fafafa] transition cursor-pointer"
+                    title="Выбрать точки заново"
+                  >
+                    Переставить
+                  </button>
+                  <button
+                    onClick={handleResetRoute}
+                    className="size-7 rounded-lg text-[#6b6b70] hover:text-red-600 hover:bg-red-50 flex items-center justify-center transition cursor-pointer"
+                    title="Сбросить точки"
+                  >
+                    ✕
+                  </button>
                 </div>
               </div>
 
-              <div className="flex items-center gap-1.5 shrink-0">
-                <button
-                  onClick={startRoutePicking}
-                  className="text-xs text-[#111113] hover:text-[#e30613] font-semibold px-2 py-1 rounded-lg hover:bg-[#fafafa] transition"
-                  title="Выбрать точки заново"
-                >
-                  Переставить
-                </button>
-                <button
-                  onClick={handleResetRoute}
-                  className="size-7 rounded-lg text-[#6b6b70] hover:text-red-600 hover:bg-red-50 flex items-center justify-center transition"
-                  title="Сбросить точки"
-                >
-                  ✕
-                </button>
-              </div>
+              {/* Уведомление, если проход заблокирован стенами */}
+              {routeError && (
+                <div className="bg-amber-50/95 backdrop-blur-md rounded-2xl border border-amber-300 p-2.5 px-3 shadow-lg flex items-center justify-between gap-2 text-xs text-amber-900 animate-in fade-in">
+                  <div className="flex items-center gap-2">
+                    <span className="text-base">⚠️</span>
+                    <span>{routeError}</span>
+                  </div>
+                  <button
+                    onClick={() => setRouteError(null)}
+                    className="text-amber-700 hover:text-amber-950 font-bold px-1.5 cursor-pointer"
+                  >
+                    ✕
+                  </button>
+                </div>
+              )}
             </div>
           ) : (
             /* Стильная главная кнопка "Построить маршрут" */
@@ -1020,6 +1301,9 @@ export function ViewerView({ space, onBack }: ViewerViewProps) {
                 onClick={() => {
                   setPointA({ x: selectedPoi.x, y: selectedPoi.y, name: selectedPoi.name })
                   setSelectedPoi(null)
+                  setNavRoute(null)
+                  setIsNavigating(false)
+                  setRouteError(null)
                 }}
                 className="h-10 rounded-full border border-emerald-300 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 font-bold text-xs flex items-center justify-center gap-1.5 transition"
               >
@@ -1030,6 +1314,9 @@ export function ViewerView({ space, onBack }: ViewerViewProps) {
                 onClick={() => {
                   setPointB({ x: selectedPoi.x, y: selectedPoi.y, name: selectedPoi.name })
                   setSelectedPoi(null)
+                  setNavRoute(null)
+                  setIsNavigating(false)
+                  setRouteError(null)
                 }}
                 className="h-10 rounded-full bg-[#e30613] text-white hover:bg-[#c40511] font-bold text-xs flex items-center justify-center gap-1.5 transition shadow-sm shadow-[#e30613]/25"
               >

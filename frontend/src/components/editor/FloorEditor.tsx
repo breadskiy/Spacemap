@@ -756,25 +756,6 @@ export function FloorEditor({ space, onBack: _onBack, onUpdateSpace }: FloorEdit
           onCursorMove={setCursorCoords}
           onStatusHintChange={setStatusHint}
         />
-      {/* Минималистичная плашка подсказки режима */}
-        <div className="absolute top-3 left-1/2 -translate-x-1/2 z-10 pointer-events-none flex items-center gap-2 bg-slate-900/90 backdrop-blur-md px-3.5 py-1.5 rounded-full border border-slate-700/80 text-slate-200 text-xs shadow-lg">
-          <span className="size-2 rounded-full bg-red-500 animate-pulse shrink-0" />
-          <span className="font-medium text-slate-300">
-            {tool === 'corner' && 'Точка: клик по сетке (Shift+ЛКМ для серии)'}
-            {tool === 'wall' && 'Стена: кликайте точки для непрерывной линии · Esc/ПКМ — стоп'}
-            {tool === 'room' && 'Зона: кликайте точки по часовой стрелке, замкните'}
-            {tool === 'select' && 'Курсор: клик для выбора, перетаскивание для перемещения'}
-            {tool === 'poi' && 'POI: кликните на плане для точки интереса'}
-            {tool === 'pano' && '360°: кликните на плане для создания панорамы'}
-            {tool === 'delete' && 'Удаление: кликните по любому элементу для удаления'}
-          </span>
-          <button
-            onClick={() => setIsHelpOpen(true)}
-            className="pointer-events-auto ml-1 text-[11px] text-red-400 hover:text-red-300 underline font-semibold cursor-pointer"
-          >
-            Справка (?)
-          </button>
-        </div>
       </div>
 
       {/* Нижняя строка статуса */}

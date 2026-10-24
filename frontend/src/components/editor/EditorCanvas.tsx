@@ -965,7 +965,11 @@ export function EditorCanvas({
         canvas.style.cursor = 'grabbing'
         return
       } else {
-        onFastCreateCorner(snap(world.x), snap(world.y))
+        if (e.shiftKey) {
+          onFastCreateCorner(snap(world.x), snap(world.y))
+        } else {
+          onOpenCornerCreateModal(snap(world.x), snap(world.y))
+        }
         return
       }
     }
