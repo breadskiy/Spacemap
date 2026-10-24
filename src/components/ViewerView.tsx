@@ -1,10 +1,22 @@
 import { useState, useEffect, useRef } from 'react'
 import type { SpaceObject } from '../types/space'
-import type { PlanData, PlanFloor, PlanPoi } from '../types/plan'
+import type { PlanData, PlanFloor, PlanPoi, PlanCorner, PlanPanorama } from '../types/plan'
+import { PanoramaViewerModal } from './PanoramaViewerModal'
 
 interface ViewerViewProps {
   space: SpaceObject
   onBack: () => void
+}
+
+function hexToRgba(hex: string, alpha: number): string {
+  let c = hex.replace('#', '')
+  if (c.length === 3) c = c.split('').map(x => x + x).join('')
+  const num = parseInt(c, 16)
+  if (isNaN(num)) return `rgba(59, 130, 246, ${alpha})`
+  const r = (num >> 16) & 255
+  const g = (num >> 8) & 255
+  const b = num & 255
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`
 }
 
 // Категории меток
@@ -49,6 +61,8 @@ export function ViewerView({ space, onBack }: ViewerViewProps) {
   const [pan, setPan] = useState<{ x: number; y: number }>({ x: 200, y: 350 })
   const [zoom, setZoom] = useState<number>(1.0)
   const [hoveredPoiId, setHoveredPoiId] = useState<string | null>(null)
+  const [hoveredPanoId, setHoveredPanoId] = useState<string | null>(null)
+  const [selectedPanorama, setSelectedPanorama] = useState<PlanPanorama | null>(null)
 
   const panRef = useRef(pan)
   const zoomRef = useRef(zoom)
@@ -71,24 +85,41 @@ export function ViewerView({ space, onBack }: ViewerViewProps) {
       const draft = localStorage.getItem('ttk_floor_plan_draft')
       if (draft) {
         const parsed: PlanData = JSON.parse(draft)
-        if (parsed.floors && parsed.floors.length > 0 && parsed.floors.some(f => (f.walls && f.walls.length > 0))) {
+        if (parsed.floors && parsed.floors.length > 0 && parsed.floors.some(f => (f.walls?.length > 0 || f.corners?.length > 0 || (f.rooms && f.rooms.length > 0)))) {
           setPlan(parsed)
           setActiveFloorId(parsed.floors[0].id)
           return
+        }
+      }
+      // Проверка любых сохраненных планов в localStorage
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i)
+        if (k && k.startsWith('spacemap_plan_')) {
+          const val = localStorage.getItem(k)
+          if (val && (val.includes('"walls"') || val.includes('"corners"'))) {
+            const parsed: PlanData = JSON.parse(val)
+            if (parsed.floors && parsed.floors.length > 0) {
+              setPlan(parsed)
+              setActiveFloorId(parsed.floors[0].id)
+              return
+            }
+          }
         }
       }
     } catch (e) {
       console.warn('Could not read plan data', e)
     }
 
-    // Если чертежа еще нет, инициализируем пустой этаж (без фейковых заглушек)
+    // Если чертежа еще нет, инициализируем чистый этаж (без фейковых заглушек)
     const emptyFloor: PlanFloor = {
       id: 'floor-1',
       name: '1 этаж',
       level: 1,
       corners: [],
       walls: [],
-      pois: []
+      rooms: [],
+      pois: [],
+      panoramas: []
     }
     setPlan({ floors: [emptyFloor] })
     setActiveFloorId('floor-1')
@@ -186,8 +217,69 @@ export function ViewerView({ space, onBack }: ViewerViewProps) {
     if (currentFloor) {
       const cornerMap = new Map(currentFloor.corners.map(c => [c.id, c]))
 
-      // 2. ВНУТРЕННЯЯ ОБЛАСТЬ НЕ ЗАКРАШИВАЕТСЯ (СТРОГО КАК ПРОСИЛ ПОЛЬЗОВАТЕЛЬ)
-      // Никаких ctx.fill() комнат — только чистые архитектурные стены
+      // 2. ЗОНЫ И НАЗВАНИЯ КОМНАТ
+      if (currentFloor.rooms && currentFloor.rooms.length > 0) {
+        currentFloor.rooms.forEach(room => {
+          const pts = room.corners.map(cid => cornerMap.get(cid)).filter(Boolean) as PlanCorner[]
+          if (pts.length < 3) return
+
+          const baseColor = room.color || '#3b82f6'
+
+          // Отрисовка полупрозрачной цветной зоны комнаты
+          ctx.save()
+          ctx.beginPath()
+          const p0 = worldToCanvas(pts[0].x, pts[0].y)
+          ctx.moveTo(p0.x, p0.y)
+          for (let i = 1; i < pts.length; i++) {
+            const pi = worldToCanvas(pts[i].x, pts[i].y)
+            ctx.lineTo(pi.x, pi.y)
+          }
+          ctx.closePath()
+
+          ctx.fillStyle = hexToRgba(baseColor, 0.14)
+          ctx.fill()
+
+          ctx.strokeStyle = hexToRgba(baseColor, 0.5)
+          ctx.lineWidth = 1.5 / zoomRef.current
+          ctx.setLineDash([5, 5])
+          ctx.stroke()
+          ctx.setLineDash([])
+          ctx.restore()
+
+          // Название комнаты в центре зоны
+          let cx = 0, cy = 0
+          pts.forEach(p => { cx += p.x; cy += p.y })
+          cx /= pts.length
+          cy /= pts.length
+
+          const centerPos = worldToCanvas(cx, cy)
+          ctx.save()
+          const fontSize = Math.max(10, 11 / zoomRef.current)
+          ctx.font = `bold ${fontSize}px sans-serif`
+          const text = room.name || 'Зона'
+          const textW = ctx.measureText(text).width
+          const badgeH = 20 / zoomRef.current
+          const badgeW = textW + (16 / zoomRef.current)
+
+          ctx.shadowColor = 'rgba(15, 23, 42, 0.08)'
+          ctx.shadowBlur = 4 / zoomRef.current
+          ctx.shadowOffsetY = 1 / zoomRef.current
+
+          ctx.fillStyle = 'rgba(255, 255, 255, 0.95)'
+          ctx.strokeStyle = hexToRgba(baseColor, 0.6)
+          ctx.lineWidth = 1.2 / zoomRef.current
+          ctx.beginPath()
+          ctx.roundRect(centerPos.x - badgeW / 2, centerPos.y - badgeH / 2, badgeW, badgeH, 6 / zoomRef.current)
+          ctx.fill()
+          ctx.stroke()
+
+          ctx.fillStyle = '#0f172a'
+          ctx.textAlign = 'center'
+          ctx.textBaseline = 'middle'
+          ctx.fillText(text, centerPos.x, centerPos.y)
+          ctx.restore()
+        })
+      }
 
       // 3. Архитектурные стены (глубокий стильный графит #0f172a)
       // Внешняя мягкая тень стен для объема
@@ -276,6 +368,84 @@ export function ViewerView({ space, onBack }: ViewerViewProps) {
           ctx.restore()
         }
       })
+
+      // 4.5. ПАНОРАМЫ 360° (КАМЕРЫ И ИНТЕРАКТИВНЫЙ ПРОСМОТР)
+      if (currentFloor.panoramas && currentFloor.panoramas.length > 0) {
+        currentFloor.panoramas.forEach(pano => {
+          const pos = worldToCanvas(pano.x, pano.y)
+          const isHovered = hoveredPanoId === pano.id
+          const radius = (isHovered ? 13 : 10.5) / zoomRef.current
+
+          ctx.save()
+
+          // Внешнее свечение при наведении
+          if (isHovered) {
+            ctx.beginPath()
+            ctx.arc(pos.x, pos.y, radius + 4 / zoomRef.current, 0, Math.PI * 2)
+            ctx.fillStyle = 'rgba(99, 102, 241, 0.35)'
+            ctx.fill()
+          }
+
+          // Тень
+          ctx.beginPath()
+          ctx.arc(pos.x, pos.y + 2 / zoomRef.current, radius + 1 / zoomRef.current, 0, Math.PI * 2)
+          ctx.fillStyle = 'rgba(0, 0, 0, 0.35)'
+          ctx.fill()
+
+          // Основной маркер камеры (индиго)
+          ctx.beginPath()
+          ctx.arc(pos.x, pos.y, radius, 0, Math.PI * 2)
+          ctx.fillStyle = isHovered ? '#6366f1' : '#4f46e5'
+          ctx.strokeStyle = '#ffffff'
+          ctx.lineWidth = 2.5 / zoomRef.current
+          ctx.fill()
+          ctx.stroke()
+
+          // Объектив камеры
+          const lensR = radius * 0.45
+          ctx.beginPath()
+          ctx.arc(pos.x, pos.y, lensR, 0, Math.PI * 2)
+          ctx.fillStyle = '#1e1b4b'
+          ctx.strokeStyle = '#ffffff'
+          ctx.lineWidth = 1.2 / zoomRef.current
+          ctx.fill()
+          ctx.stroke()
+
+          // Блик на линзе
+          ctx.beginPath()
+          ctx.arc(pos.x - lensR * 0.35, pos.y - lensR * 0.35, lensR * 0.25, 0, Math.PI * 2)
+          ctx.fillStyle = '#a5b4fc'
+          ctx.fill()
+
+          // Бейдж с названием и 360° при наведении
+          if (isHovered) {
+            ctx.save()
+            const fontSize = Math.max(10, 11 / zoomRef.current)
+            ctx.font = `600 ${fontSize}px sans-serif`
+            const text = `📷 360°: ${pano.name || 'Панорама'}`
+            const textW = ctx.measureText(text).width
+            const badgeH = 19 / zoomRef.current
+            const badgeY = pos.y + (18 / zoomRef.current)
+            const badgeW = textW + (14 / zoomRef.current)
+
+            ctx.fillStyle = '#1e1b4b'
+            ctx.strokeStyle = '#6366f1'
+            ctx.lineWidth = 1 / zoomRef.current
+            ctx.beginPath()
+            ctx.roundRect(pos.x - badgeW / 2, badgeY - badgeH / 2, badgeW, badgeH, 6 / zoomRef.current)
+            ctx.fill()
+            ctx.stroke()
+
+            ctx.fillStyle = '#ffffff'
+            ctx.textAlign = 'center'
+            ctx.textBaseline = 'middle'
+            ctx.fillText(text, pos.x, badgeY)
+            ctx.restore()
+          }
+
+          ctx.restore()
+        })
+      }
 
       // 5. Маркер точки А (зеленый круг со стайлингом) — БЕЗ ЛИНИЙ И БЕЗ ТЕКСТОВ НАД НИМИ
       if (pointA) {
@@ -368,7 +538,7 @@ export function ViewerView({ space, onBack }: ViewerViewProps) {
 
   useEffect(() => {
     draw()
-  }, [pan, zoom, activeFloorId, selectedPoi, pointA, pointB, hoveredPoiId])
+  }, [pan, zoom, activeFloorId, selectedPoi, pointA, pointB, hoveredPoiId, hoveredPanoId])
 
   // Интерактивные клики и перемещение
   useEffect(() => {
@@ -387,11 +557,10 @@ export function ViewerView({ space, onBack }: ViewerViewProps) {
 
       // ПОСТРОЕНИЕ МАРШРУТА ПОЛЬЗОВАТЕЛЕМ (КЛИК НА КАРТЕ):
       if (routingStepRef.current === 'pickA') {
-        // Проверяем, кликнул ли на существующую метку или в свободное место
         const clickedPoi = currentFloor?.pois.find(p => Math.hypot(p.x - world.x, p.y - world.y) <= 22 / zoomRef.current)
         const nameA = clickedPoi ? clickedPoi.name : 'Точка А (Старт)'
         setPointA({ x: clickedPoi ? clickedPoi.x : Math.round(world.x), y: clickedPoi ? clickedPoi.y : Math.round(world.y), name: nameA })
-        setRoutingStep('pickB') // Переходим ко второму шагу
+        setRoutingStep('pickB')
         return
       }
 
@@ -399,12 +568,19 @@ export function ViewerView({ space, onBack }: ViewerViewProps) {
         const clickedPoi = currentFloor?.pois.find(p => Math.hypot(p.x - world.x, p.y - world.y) <= 22 / zoomRef.current)
         const nameB = clickedPoi ? clickedPoi.name : 'Точка Б (Финиш)'
         setPointB({ x: clickedPoi ? clickedPoi.x : Math.round(world.x), y: clickedPoi ? clickedPoi.y : Math.round(world.y), name: nameB })
-        setRoutingStep('idle') // Завершили установку точек
+        setRoutingStep('idle')
         return
       }
 
-      // В обычном режиме: клик по метке открывает её карточку
+      // В обычном режиме: клик по панораме или метке POI
       if (currentFloor) {
+        // Клик по панораме 360° открывает интерактивный просмотр
+        const clickedPano = currentFloor.panoramas?.find(p => Math.hypot(p.x - world.x, p.y - world.y) <= 22 / zoomRef.current)
+        if (clickedPano) {
+          setSelectedPanorama(clickedPano)
+          return
+        }
+
         const clickedPoi = currentFloor.pois.find(p => Math.hypot(p.x - world.x, p.y - world.y) <= 20 / zoomRef.current)
         if (clickedPoi) {
           setSelectedPoi(clickedPoi)
@@ -430,11 +606,16 @@ export function ViewerView({ space, onBack }: ViewerViewProps) {
         return
       }
 
-      // Подсветка меток при наведении
+      // Подсветка меток и панорам при наведении
       if (currentFloor) {
         const world = screenToWorld(sx, sy)
         const hovered = currentFloor.pois.find(p => Math.hypot(p.x - world.x, p.y - world.y) <= 20 / zoomRef.current)
         setHoveredPoiId(hovered ? hovered.id : null)
+
+        const hoveredPano = currentFloor.panoramas?.find(p => Math.hypot(p.x - world.x, p.y - world.y) <= 22 / zoomRef.current)
+        setHoveredPanoId(hoveredPano ? hoveredPano.id : null)
+
+        canvas.style.cursor = (hovered || hoveredPano) ? 'pointer' : 'default'
       }
     }
 
@@ -820,6 +1001,16 @@ export function ViewerView({ space, onBack }: ViewerViewProps) {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Модальное окно интерактивного 360° просмотра панорамы */}
+      {selectedPanorama && (
+        <PanoramaViewerModal
+          panorama={selectedPanorama}
+          roomName={currentFloor?.rooms?.find(r => r.id === selectedPanorama.room_id)?.name || 'Помещение'}
+          floorName={currentFloor?.name || '1 этаж'}
+          onClose={() => setSelectedPanorama(null)}
+        />
       )}
     </div>
   )

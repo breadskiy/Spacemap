@@ -150,7 +150,7 @@ function recalculateWallLengths(floor) {
 // -------------------------------------------------------------
 // ОТРИСОВКА
 // -------------------------------------------------------------
-function render() {
+function render(autoSave = true) {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
   ctx.save();
@@ -206,7 +206,9 @@ function render() {
 
   ctx.restore();
   updateStats();
-  saveDraftToStorage();
+  if (autoSave) {
+    saveDraftToStorage();
+  }
 }
 
 // Декартова сетка: X вправо (+), Y вверх (+)
@@ -3599,10 +3601,21 @@ const storagePlanKey = currentSpaceId ? ('spacemap_plan_' + currentSpaceId) : 't
 function saveDraftToStorage() {
   try {
     const jsonStr = exportToJSON();
+    const hasAnyContent = state.floors && state.floors.some(f => 
+      (f.corners && f.corners.length > 0) || 
+      (f.walls && f.walls.length > 0) || 
+      (f.rooms && f.rooms.length > 0) || 
+      (f.panoramas && f.panoramas.length > 0)
+    );
+
     if (storagePlanKey) {
       localStorage.setItem(storagePlanKey, jsonStr);
     }
-    localStorage.setItem('ttk_floor_plan_draft', jsonStr);
+    // Записываем в общий черновик ТОЛЬКО если есть реальный контент,
+    // чтобы открытие чистого проекта никогда не стирало прошлую версию!
+    if (hasAnyContent) {
+      localStorage.setItem('ttk_floor_plan_draft', jsonStr);
+    }
 
     // Обновляем счетчик стен в карточке объекта
     if (currentSpaceId) {
@@ -3640,11 +3653,26 @@ function saveDraftToStorage() {
 function loadDraftFromStorage() {
   try {
     let saved = null;
+    // 1. Сначала ищем по ключу конкретного проекта
     if (storagePlanKey) {
       saved = localStorage.getItem(storagePlanKey);
     }
-    if (!saved && !currentSpaceId) {
+    // 2. Если по ключу проекта еще нет — берем сохраненный общий черновик
+    if (!saved) {
       saved = localStorage.getItem('ttk_floor_plan_draft');
+    }
+    // 3. Если и там нет — ищем любой сохраненный чертеж в localStorage
+    if (!saved) {
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (k && k.startsWith('spacemap_plan_')) {
+          const val = localStorage.getItem(k);
+          if (val && (val.includes('"walls"') || val.includes('"corners"'))) {
+            saved = val;
+            break;
+          }
+        }
+      }
     }
     if (saved) {
       const data = JSON.parse(saved);
@@ -3657,6 +3685,10 @@ function loadDraftFromStorage() {
         );
         if (hasContent) {
           loadJSONData(data);
+          // Закрепляем за текущим проектом, чтобы он сохранялся отдельно
+          if (storagePlanKey && storagePlanKey !== 'ttk_floor_plan_draft') {
+            localStorage.setItem(storagePlanKey, saved);
+          }
           console.log('[Editor] План для объекта ' + currentSpaceId + ' успешно загружен!');
           return true;
         }
@@ -3687,10 +3719,9 @@ if (!loadDraftFromStorage()) {
   ];
   state.activeFloorId = 'floor-1';
   updateFloorUI();
-  render();
 }
 setTool('select');
-render();
+render(false);
 
 
 // -------------------------------------------------------------

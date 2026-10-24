@@ -19,6 +19,23 @@ export interface PlanPoi {
   y: number
 }
 
+export interface PlanRoom {
+  id: string
+  name: string
+  color?: string
+  corners: string[]
+  type?: string
+}
+
+export interface PlanPanorama {
+  id: string
+  name: string
+  x: number
+  y: number
+  image?: string
+  room_id?: string
+}
+
 export interface PlanFloor {
   id: string
   name: string
@@ -26,7 +43,9 @@ export interface PlanFloor {
   height?: number
   corners: PlanCorner[]
   walls: PlanWall[]
+  rooms?: PlanRoom[]
   pois: PlanPoi[]
+  panoramas?: PlanPanorama[]
 }
 
 export interface PlanData {

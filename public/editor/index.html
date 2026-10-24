@@ -10,71 +10,70 @@
 </head>
 <body class="bg-slate-900 text-slate-100 h-screen flex flex-col overflow-hidden font-sans select-none">
 
-  <!-- Шапка приложения -->
-  <header class="bg-slate-800 border-b border-slate-700 px-5 py-3 flex items-center justify-between shadow-md z-20">
-    <div class="flex items-center gap-3">
-      <div class="bg-red-600 text-white p-2 rounded-lg font-black text-lg tracking-wider flex items-center justify-center w-10 h-10 shadow">
+  <!-- Шапка приложения: строгая компактная высота h-12 без раздувания и без наездов на холст -->
+  <header class="bg-slate-800 border-b border-slate-700 h-12 shrink-0 px-3 flex items-center justify-between shadow-md z-20 flex-nowrap overflow-x-auto select-none gap-2">
+    <div class="flex items-center gap-2 shrink-0">
+      <div class="bg-red-600 text-white rounded-lg font-black text-xs tracking-wider flex items-center justify-center size-7 shadow">
         ТТК
       </div>
       <div>
-        <h1 class="text-base font-bold text-white tracking-wide">Редактор планов этажей</h1>
-        <p class="text-xs text-slate-400">Углы, стены и многоэтажность</p>
+        <h1 class="text-xs font-bold text-white tracking-wide leading-tight">Редактор планов</h1>
+        <p class="text-[10px] text-slate-400 leading-tight">2D-план этажей</p>
       </div>
     </div>
 
     <!-- Переключатель инструментов -->
-    <div class="flex items-center bg-slate-900/80 p-1 rounded-xl border border-slate-700 gap-1">
-      <button id="tool-select" class="tool-btn px-3 py-1.5 rounded-lg text-sm flex items-center gap-2 transition active-tool" title="Курсор: перемещение по плану (зажать и тянуть) и выбор объектов">
-        <i class="fa-solid fa-arrow-pointer text-blue-400"></i>
+    <div class="flex items-center bg-slate-900/80 p-0.5 rounded-xl border border-slate-700 gap-0.5 shrink-0">
+      <button id="tool-select" class="tool-btn px-2.5 py-1 rounded-lg text-xs flex items-center gap-1.5 transition active-tool" title="Курсор: перемещение по плану и выбор объектов">
+        <i class="fa-solid fa-arrow-pointer text-blue-400 text-xs"></i>
         <span>Курсор</span>
       </button>
-      <button id="tool-corner" class="tool-btn px-3 py-1.5 rounded-lg text-sm flex items-center gap-2 transition hover:bg-slate-800 text-slate-300"  title="Поставить точку или перетащить (зажать точку)">
-        <i class="fa-solid fa-circle-dot text-amber-400"></i>
+      <button id="tool-corner" class="tool-btn px-2.5 py-1 rounded-lg text-xs flex items-center gap-1.5 transition hover:bg-slate-800 text-slate-300" title="Поставить точку или перетащить">
+        <i class="fa-solid fa-circle-dot text-amber-400 text-xs"></i>
         <span>Точка</span>
       </button>
-      <button id="tool-wall" class="tool-btn px-3 py-1.5 rounded-lg text-sm flex items-center gap-2 transition hover:bg-slate-800 text-slate-300" title="Соединить точки в стену">
-        <i class="fa-solid fa-draw-polygon text-emerald-400"></i>
+      <button id="tool-wall" class="tool-btn px-2.5 py-1 rounded-lg text-xs flex items-center gap-1.5 transition hover:bg-slate-800 text-slate-300" title="Соединить точки в стену">
+        <i class="fa-solid fa-draw-polygon text-emerald-400 text-xs"></i>
         <span>Стена</span>
       </button>
-      <button id="tool-room" class="tool-btn px-3 py-1.5 rounded-lg text-sm flex items-center gap-2 transition hover:bg-slate-800 text-slate-300" title="Создать комнату (выбрать углы и замкнуть контур)">
-        <i class="fa-solid fa-vector-square text-cyan-400"></i>
-        <span>Комната</span>
+      <button id="tool-room" class="tool-btn px-2.5 py-1 rounded-lg text-xs flex items-center gap-1.5 transition hover:bg-slate-800 text-slate-300" title="Создать комнату / зону">
+        <i class="fa-solid fa-vector-square text-cyan-400 text-xs"></i>
+        <span>Зона</span>
       </button>
-      <button id="tool-poi" class="tool-btn px-3 py-1.5 rounded-lg text-sm flex items-center gap-2 transition hover:bg-slate-800 text-slate-300" title="Добавить точку интереса внутри комнаты">
-        <i class="fa-solid fa-location-dot text-rose-400"></i>
-        <span>Точка интереса</span>
+      <button id="tool-poi" class="tool-btn px-2.5 py-1 rounded-lg text-xs flex items-center gap-1.5 transition hover:bg-slate-800 text-slate-300" title="Добавить точку интереса">
+        <i class="fa-solid fa-location-dot text-rose-400 text-xs"></i>
+        <span>POI</span>
       </button>
-      <button id="tool-pano" class="tool-btn px-3 py-1.5 rounded-lg text-sm flex items-center gap-2 transition hover:bg-slate-800 text-slate-300" title="Создать панораму комнаты с гидом по съемке">
-        <i class="fa-solid fa-camera text-indigo-400"></i>
-        <span>Панорама 360°</span>
+      <button id="tool-pano" class="tool-btn px-2.5 py-1 rounded-lg text-xs flex items-center gap-1.5 transition hover:bg-slate-800 text-slate-300" title="Создать панораму 360°">
+        <i class="fa-solid fa-camera text-indigo-400 text-xs"></i>
+        <span>360°</span>
       </button>
-      <button id="tool-delete" class="tool-btn px-3 py-1.5 rounded-lg text-sm flex items-center gap-2 transition hover:bg-slate-800 text-slate-300" title="Удалить элемент кликом">
-        <i class="fa-solid fa-trash-can text-slate-400 hover:text-rose-400"></i>
-        <span>Удаление</span>
+      <button id="tool-delete" class="tool-btn px-2.5 py-1 rounded-lg text-xs flex items-center gap-1.5 transition hover:bg-slate-800 text-slate-300" title="Удалить кликом">
+        <i class="fa-solid fa-trash-can text-slate-400 hover:text-rose-400 text-xs"></i>
+        <span>Удалить</span>
       </button>
     </div>
 
-    <!-- Экспорт / Импорт -->
-    <div class="flex items-center gap-2">
-      <label class="cursor-pointer bg-slate-700 hover:bg-slate-600 text-white px-3 py-2 rounded-lg text-xs font-medium flex items-center gap-2 transition border border-slate-600">
-        <i class="fa-solid fa-file-import text-blue-400"></i>
-        <span>Загрузить JSON</span>
+    <!-- Экспорт / Импорт / Сохранение -->
+    <div class="flex items-center gap-1.5 shrink-0">
+      <button id="btn-save-plan-quick" class="bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition shadow shadow-emerald-600/30 cursor-pointer" title="Сохранить план помещения в проект">
+        <i class="fa-solid fa-floppy-disk text-xs"></i>
+        <span>Сохранить</span>
+      </button>
+
+      <label class="cursor-pointer bg-slate-700 hover:bg-slate-600 text-slate-200 px-2.5 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5 transition border border-slate-600" title="Загрузить JSON">
+        <i class="fa-solid fa-file-import text-blue-400 text-xs"></i>
+        <span class="hidden md:inline">Импорт</span>
         <input type="file" id="json-file-input" accept=".json" class="hidden">
       </label>
 
-      <button id="btn-save-plan-quick" class="bg-emerald-600 hover:bg-emerald-500 text-white px-3.5 py-2 rounded-lg text-xs font-bold flex items-center gap-2 transition shadow shadow-emerald-600/30 cursor-pointer" title="Сохранить план помещения в проект">
-        <i class="fa-solid fa-floppy-disk"></i>
-        <span>Сохранить проект</span>
+      <button id="btn-export-json" class="bg-slate-700 hover:bg-slate-600 text-slate-200 px-2.5 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5 transition border border-slate-600" title="Скачать JSON на диск">
+        <i class="fa-solid fa-download text-emerald-400 text-xs"></i>
+        <span class="hidden md:inline">Экспорт</span>
       </button>
 
-      <button id="btn-export-json" class="bg-slate-700 hover:bg-slate-600 text-slate-200 px-3 py-2 rounded-lg text-xs font-semibold flex items-center gap-2 transition border border-slate-600" title="Скачать файл JSON на диск">
-        <i class="fa-solid fa-download text-emerald-400"></i>
-        <span>Экспорт JSON</span>
-      </button>
-
-      <button id="btn-view-json" class="bg-slate-700 hover:bg-slate-600 text-slate-300 px-3 py-2 rounded-lg text-xs font-medium flex items-center gap-2 transition border border-slate-600" title="Посмотреть код">
-        <i class="fa-solid fa-code"></i>
-        <span>Код</span>
+      <button id="btn-view-json" class="bg-slate-700 hover:bg-slate-600 text-slate-300 hover:text-white px-2 py-1.5 rounded-lg text-xs font-medium flex items-center transition border border-slate-600" title="Посмотреть JSON код">
+        <i class="fa-solid fa-code text-xs"></i>
       </button>
     </div>
   </header>
