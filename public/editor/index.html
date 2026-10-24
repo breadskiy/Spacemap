@@ -24,7 +24,11 @@
 
     <!-- Переключатель инструментов -->
     <div class="flex items-center bg-slate-900/80 p-1 rounded-xl border border-slate-700 gap-1">
-      <button id="tool-corner" class="tool-btn px-3 py-1.5 rounded-lg text-sm flex items-center gap-2 transition active-tool" title="Поставить точку или перетащить (зажать точку)">
+      <button id="tool-select" class="tool-btn px-3 py-1.5 rounded-lg text-sm flex items-center gap-2 transition active-tool" title="Курсор: перемещение по плану (зажать и тянуть) и выбор объектов">
+        <i class="fa-solid fa-arrow-pointer text-blue-400"></i>
+        <span>Курсор</span>
+      </button>
+      <button id="tool-corner" class="tool-btn px-3 py-1.5 rounded-lg text-sm flex items-center gap-2 transition hover:bg-slate-800 text-slate-300"  title="Поставить точку или перетащить (зажать точку)">
         <i class="fa-solid fa-circle-dot text-amber-400"></i>
         <span>Точка</span>
       </button>
@@ -74,31 +78,35 @@
   <div class="flex-1 flex overflow-hidden relative">
     
     <!-- Левая панель: Этажи, Вершины и Стены -->
-    <aside class="w-80 bg-slate-800/95 border-r border-slate-700 flex flex-col z-10 shadow-lg text-slate-200">
+    <aside id="editor-sidebar" class="w-80 bg-slate-800/95 border-r border-slate-700 flex flex-col z-10 shadow-lg text-slate-200 transition-all duration-300 relative">
+      <!-- Кнопка сворачивания панели -->
+      <button id="btn-toggle-sidebar" class="absolute -right-3.5 top-3 z-30 w-7 h-7 rounded-full bg-slate-800 border border-slate-600 text-slate-300 hover:text-white hover:bg-slate-700 shadow-md flex items-center justify-center text-xs transition cursor-pointer" title="Свернуть панель">
+        <i class="fa-solid fa-chevron-left text-[10px]" id="sidebar-toggle-icon"></i>
+      </button>
       
       <!-- Вкладки управления -->
-      <div class="flex border-b border-slate-700 bg-slate-900/60 p-1 gap-0.5 text-[10px]">
-        <button id="tab-btn-floors" class="sidebar-tab flex-1 py-1.5 px-0.5 rounded-lg font-semibold flex items-center justify-center gap-1 bg-slate-800 text-white shadow-sm border border-slate-700" title="Этажи">
+      <div class="grid grid-cols-3 gap-1 border-b border-slate-700 bg-slate-900/80 p-1.5 text-[10px]">
+        <button id="tab-btn-floors" class="sidebar-tab py-1.5 px-1 rounded-lg font-semibold flex items-center justify-center gap-1.5 bg-slate-800 text-white shadow-sm border border-slate-700" title="Этажи">
           <i class="fa-solid fa-layer-group text-red-500"></i>
           <span>Этажи</span>
         </button>
-        <button id="tab-btn-corners" class="sidebar-tab flex-1 py-1.5 px-0.5 rounded-lg font-medium flex items-center justify-center gap-0.5 text-slate-400 hover:text-white hover:bg-slate-800/50 transition" title="Вершины">
+        <button id="tab-btn-corners" class="sidebar-tab py-1.5 px-1 rounded-lg font-medium flex items-center justify-center gap-1 text-slate-400 hover:text-white hover:bg-slate-800/50 transition" title="Вершины">
           <i class="fa-solid fa-circle-dot text-amber-400"></i>
           <span>Углы (<span id="tab-corners-count">0</span>)</span>
         </button>
-        <button id="tab-btn-walls" class="sidebar-tab flex-1 py-1.5 px-0.5 rounded-lg font-medium flex items-center justify-center gap-0.5 text-slate-400 hover:text-white hover:bg-slate-800/50 transition" title="Стены">
+        <button id="tab-btn-walls" class="sidebar-tab py-1.5 px-1 rounded-lg font-medium flex items-center justify-center gap-1 text-slate-400 hover:text-white hover:bg-slate-800/50 transition" title="Стены">
           <i class="fa-solid fa-draw-polygon text-emerald-400"></i>
           <span>Стены (<span id="tab-walls-count">0</span>)</span>
         </button>
-        <button id="tab-btn-rooms" class="sidebar-tab flex-1 py-1.5 px-0.5 rounded-lg font-medium flex items-center justify-center gap-0.5 text-slate-400 hover:text-white hover:bg-slate-800/50 transition" title="Комнаты">
+        <button id="tab-btn-rooms" class="sidebar-tab py-1.5 px-1 rounded-lg font-medium flex items-center justify-center gap-1 text-slate-400 hover:text-white hover:bg-slate-800/50 transition" title="Комнаты">
           <i class="fa-solid fa-vector-square text-cyan-400"></i>
           <span>Зоны (<span id="tab-rooms-count">0</span>)</span>
         </button>
-        <button id="tab-btn-pois" class="sidebar-tab flex-1 py-1.5 px-0.5 rounded-lg font-medium flex items-center justify-center gap-0.5 text-slate-400 hover:text-white hover:bg-slate-800/50 transition" title="Точки интереса (POI)">
+        <button id="tab-btn-pois" class="sidebar-tab py-1.5 px-1 rounded-lg font-medium flex items-center justify-center gap-1 text-slate-400 hover:text-white hover:bg-slate-800/50 transition" title="Точки интереса (POI)">
           <i class="fa-solid fa-location-dot text-rose-400"></i>
           <span>POI (<span id="tab-pois-count">0</span>)</span>
         </button>
-        <button id="tab-btn-panos" class="sidebar-tab flex-1 py-1.5 px-0.5 rounded-lg font-medium flex items-center justify-center gap-0.5 text-slate-400 hover:text-white hover:bg-slate-800/50 transition" title="Панорамы 360°">
+        <button id="tab-btn-panos" class="sidebar-tab py-1.5 px-1 rounded-lg font-medium flex items-center justify-center gap-1 text-slate-400 hover:text-white hover:bg-slate-800/50 transition" title="Панорамы 360°">
           <i class="fa-solid fa-camera text-indigo-400"></i>
           <span>360° (<span id="tab-panos-count">0</span>)</span>
         </button>
@@ -210,21 +218,7 @@
         </div>
       </div>
 
-      <!-- Нижний сводный статус -->
-      <div class="px-4 py-2.5 border-t border-slate-700/80 bg-slate-950/80 flex items-center justify-between text-xs text-slate-400">
-        <span class="flex items-center gap-1.5">
-          <span class="w-2 h-2 rounded-full bg-red-500"></span>
-          <span id="active-floor-badge" class="font-semibold text-slate-200">1 этаж</span>
-        </span>
-        <div class="flex items-center gap-2 text-[10px]">
-          <span>Углов: <b id="stat-corners" class="text-amber-400">0</b></span>
-          <span>Стен: <b id="stat-walls" class="text-emerald-400">0</b></span>
-          <span>Зон: <b id="stat-rooms" class="text-cyan-400">0</b></span>
-          <span>POI: <b id="stat-pois" class="text-rose-400">0</b></span>
-          <span>360°: <b id="stat-panos" class="text-indigo-400">0</b></span>
-        </div>
-      </div>
-    </aside>
+      </aside>
 
     <!-- Холст для рисования -->
     <main class="flex-1 relative overflow-hidden bg-slate-950 cursor-crosshair" id="canvas-container">
@@ -889,10 +883,7 @@
           </div>
         </div>
         <div class="flex items-center gap-2">
-          <button id="btn-viewer-toggle-pois" class="px-3 py-1.5 rounded-lg bg-rose-600/20 hover:bg-rose-600/40 text-rose-300 hover:text-white text-xs font-medium flex items-center gap-1.5 transition border border-rose-500/40 shadow" title="Скрыть или показать точки интереса на панораме">
-            <i class="fa-solid fa-location-dot text-rose-400" id="icon-toggle-pois"></i>
-            <span id="label-toggle-pois">Скрыть точки</span>
-          </button>
+          
           <button id="btn-viewer-edit-point" class="px-3 py-1.5 rounded-lg bg-indigo-600/30 hover:bg-indigo-600 text-indigo-200 hover:text-white text-xs font-medium flex items-center gap-1.5 transition border border-indigo-500/40" title="Заменить фото или изменить параметры точки">
             <i class="fa-solid fa-cloud-arrow-up"></i>
             <span>Заменить фото</span>

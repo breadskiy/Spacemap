@@ -652,7 +652,10 @@ function drawPois(floor) {
     ctx.fill();
 
     // Плашка с названием точки интереса (всегда видна или при выделении)
-    drawPoiBadge(poi, pos, radius, floor, isHovered || isSelected);
+    // Плашка с названием POI показывается ТОЛЬКО при наведении
+    if (isHovered) {
+      drawPoiBadge(poi, pos, radius, floor, true);
+    }
 
     ctx.restore();
   });
@@ -749,10 +752,7 @@ function drawPanoramas(floor) {
     ctx.fillStyle = '#a5b4fc';
     ctx.fill();
 
-    // Бейдж названия панорамы (скрыт по умолчанию, виден при наведении или клике)
-    if (isHovered || isSelected) {
-      drawPanoBadge(pano, pos, radius, floor, true);
-    }
+    // Названия панорам полностью убраны по запросу
 
     ctx.restore();
   });
@@ -987,7 +987,13 @@ canvas.addEventListener('mousedown', e => {
     state.selectedWallId = null;
     state.selectedPoiId = null;
 
-    if (state.tool === 'corner') {
+    if (state.tool === 'select') {
+      state.isPanning = true;
+      state.panStart = { x: sx - state.pan.x, y: sy - state.pan.y };
+      canvas.style.cursor = 'grabbing';
+      render();
+      return;
+    } else if (state.tool === 'corner') {
       const targetX = snap(world.x);
       const targetY = snap(world.y);
       openCornerCreateModal(targetX, targetY);
@@ -1663,6 +1669,10 @@ window.addEventListener('mousemove', e => {
     state.hoverCornerId = findCornerAt(world.x, world.y)?.id || null;
     state.hoverWallId = findWallAt(world.x, world.y)?.id || null;
     state.hoverPoiId = findPoiAt(world.x, world.y, floor)?.id || null;
+    if (state.tool === 'select' && !state.isPanning) {
+      const isOverObj = state.hoverCornerId || state.hoverWallId || state.hoverPoiId || state.hoverPanoId;
+      canvas.style.cursor = isOverObj ? 'pointer' : 'grab';
+    }
     state.hoverPanoId = findPanoAt(world.x, world.y, floor)?.id || null;
   }
 
@@ -1742,7 +1752,7 @@ window.addEventListener('mouseup', () => {
 
   state.isPanning = false;
   state.isDraggingCorner = false;
-  canvas.style.cursor = 'crosshair';
+  canvas.style.cursor = state.tool === 'select' ? 'grab' : 'crosshair';
   render();
 });
 
@@ -1767,6 +1777,7 @@ canvas.addEventListener('wheel', e => {
 
 // Инструменты
 const toolButtons = {
+  select: document.getElementById('tool-select'),
   corner: document.getElementById('tool-corner'),
   wall: document.getElementById('tool-wall'),
   room: document.getElementById('tool-room'),
@@ -1793,6 +1804,7 @@ function setTool(toolName) {
   });
 
   const hints = {
+    select: 'Курсор: зажмите левую кнопку в пустом месте для перемещения по карте. Кликайте на объекты для выбора.',
     corner: 'Клик в пустоту — создать точку. Зажмите точку — перетащите её. Двойной клик — изменить.',
     wall: 'Клик по двум точкам — создать стену. Клик по стене показывает её длину.',
     room: 'Кликайте по углам по кругу, затем кликните по начальной точке, чтобы замкнуть комнату.',
@@ -1801,6 +1813,9 @@ function setTool(toolName) {
     delete: 'Кликните по точке, стене, комнате, POI или панораме для удаления.'
   };
   updateStatusHint(hints[toolName] || 'Выберите инструмент');
+  if (canvas) {
+    canvas.style.cursor = toolName === 'select' ? 'grab' : 'crosshair';
+  }
   render();
 }
 
@@ -2786,196 +2801,6 @@ if (panoDropzone) {
       handlePanoImageFile(e.dataTransfer.files[0], (dataUrl, info) => {
         updatePanoPreviewUI(dataUrl, info);
       });
-
-// -------------------------------------------------------------
-// РЕЖИМ СШИВКИ 360° ПАНОРАМ ИЗ 2-Х КАДРОВ ПО 180°
-// -------------------------------------------------------------
-const tabPanoModeSingle = document.getElementById('tab-pano-mode-single');
-const tabPanoModeStitch = document.getElementById('tab-pano-mode-stitch');
-const panoSingleModeContainer = document.getElementById('pano-single-mode-container');
-const panoStitchModeContainer = document.getElementById('pano-stitch-mode-container');
-
-const inputStitchFrame1 = document.getElementById('input-stitch-frame1');
-const dropzoneStitchFrame1 = document.getElementById('dropzone-stitch-frame1');
-const stitchFrame1Name = document.getElementById('stitch-frame1-name');
-
-const inputStitchFrame2 = document.getElementById('input-stitch-frame2');
-const dropzoneStitchFrame2 = document.getElementById('dropzone-stitch-frame2');
-const stitchFrame2Name = document.getElementById('stitch-frame2-name');
-
-const btnExecuteStitch = document.getElementById('btn-execute-stitch');
-const stitchProgressIndicator = document.getElementById('stitch-progress-indicator');
-
-let stitchFrame1File = null;
-let stitchFrame2File = null;
-
-function setPanoMode(mode) {
-  if (mode === 'single') {
-    if (tabPanoModeSingle) {
-      tabPanoModeSingle.className = 'flex-1 py-1.5 px-3 rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 transition bg-indigo-600 text-white shadow';
-    }
-    if (tabPanoModeStitch) {
-      tabPanoModeStitch.className = 'flex-1 py-1.5 px-3 rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 transition text-slate-300 hover:text-white hover:bg-slate-800';
-    }
-    if (panoSingleModeContainer) panoSingleModeContainer.classList.remove('hidden');
-    if (panoStitchModeContainer) panoStitchModeContainer.classList.add('hidden');
-  } else {
-    if (tabPanoModeStitch) {
-      tabPanoModeStitch.className = 'flex-1 py-1.5 px-3 rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 transition bg-indigo-600 text-white shadow';
-    }
-    if (tabPanoModeSingle) {
-      tabPanoModeSingle.className = 'flex-1 py-1.5 px-3 rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 transition text-slate-300 hover:text-white hover:bg-slate-800';
-    }
-    if (panoSingleModeContainer) panoSingleModeContainer.classList.add('hidden');
-    if (panoStitchModeContainer) panoStitchModeContainer.classList.remove('hidden');
-  }
-}
-
-if (tabPanoModeSingle) {
-  tabPanoModeSingle.addEventListener('click', () => setPanoMode('single'));
-}
-if (tabPanoModeStitch) {
-  tabPanoModeStitch.addEventListener('click', () => setPanoMode('stitch'));
-}
-
-function updateFrameDropzoneUI(frameNum, file) {
-  const dropzone = frameNum === 1 ? dropzoneStitchFrame1 : dropzoneStitchFrame2;
-  const nameLabel = frameNum === 1 ? stitchFrame1Name : stitchFrame2Name;
-  if (!dropzone) return;
-
-  if (file) {
-    if (nameLabel) nameLabel.innerText = file.name;
-    dropzone.className = 'border-2 border-emerald-500/60 bg-emerald-950/20 rounded-xl p-3 text-center cursor-pointer transition flex flex-col items-center justify-center gap-1.5 shadow-sm';
-    dropzone.innerHTML = `
-      <i class="fa-solid fa-circle-check text-emerald-400 text-lg"></i>
-      <span class="text-xs text-emerald-300 font-bold truncate max-w-[140px]">${file.name}</span>
-      <span class="text-[10px] text-emerald-400/80">${(file.size / 1024 / 1024).toFixed(1)} МБ · Нажмите, чтобы заменить</span>
-    `;
-  } else {
-    if (nameLabel) nameLabel.innerText = '';
-    dropzone.className = 'border-2 border-dashed border-slate-700 hover:border-indigo-400 bg-slate-950/60 rounded-xl p-3 text-center cursor-pointer transition flex flex-col items-center justify-center gap-1.5';
-    dropzone.innerHTML = `
-      <i class="fa-solid fa-camera text-slate-400 text-lg"></i>
-      <span class="text-xs text-slate-300 font-medium">Выберите кадр ${frameNum}</span>
-      <span class="text-[10px] text-slate-500">HEIC или JPG</span>
-    `;
-  }
-}
-
-// Кадр 1
-if (dropzoneStitchFrame1) {
-  dropzoneStitchFrame1.addEventListener('click', () => {
-    if (inputStitchFrame1) inputStitchFrame1.click();
-  });
-  dropzoneStitchFrame1.addEventListener('dragover', e => {
-    e.preventDefault();
-    dropzoneStitchFrame1.classList.add('border-indigo-400');
-  });
-  dropzoneStitchFrame1.addEventListener('dragleave', () => {
-    dropzoneStitchFrame1.classList.remove('border-indigo-400');
-  });
-  dropzoneStitchFrame1.addEventListener('drop', e => {
-    e.preventDefault();
-    dropzoneStitchFrame1.classList.remove('border-indigo-400');
-    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-      stitchFrame1File = e.dataTransfer.files[0];
-      updateFrameDropzoneUI(1, stitchFrame1File);
-    }
-  });
-}
-
-if (inputStitchFrame1) {
-  inputStitchFrame1.addEventListener('change', e => {
-    if (e.target.files && e.target.files[0]) {
-      stitchFrame1File = e.target.files[0];
-      updateFrameDropzoneUI(1, stitchFrame1File);
-    }
-  });
-}
-
-// Кадр 2
-if (dropzoneStitchFrame2) {
-  dropzoneStitchFrame2.addEventListener('click', () => {
-    if (inputStitchFrame2) inputStitchFrame2.click();
-  });
-  dropzoneStitchFrame2.addEventListener('dragover', e => {
-    e.preventDefault();
-    dropzoneStitchFrame2.classList.add('border-indigo-400');
-  });
-  dropzoneStitchFrame2.addEventListener('dragleave', () => {
-    dropzoneStitchFrame2.classList.remove('border-indigo-400');
-  });
-  dropzoneStitchFrame2.addEventListener('drop', e => {
-    e.preventDefault();
-    dropzoneStitchFrame2.classList.remove('border-indigo-400');
-    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-      stitchFrame2File = e.dataTransfer.files[0];
-      updateFrameDropzoneUI(2, stitchFrame2File);
-    }
-  });
-}
-
-if (inputStitchFrame2) {
-  inputStitchFrame2.addEventListener('change', e => {
-    if (e.target.files && e.target.files[0]) {
-      stitchFrame2File = e.target.files[0];
-      updateFrameDropzoneUI(2, stitchFrame2File);
-    }
-  });
-}
-
-// Запуск сшивки панорамы
-if (btnExecuteStitch) {
-  btnExecuteStitch.addEventListener('click', async () => {
-    if (!stitchFrame1File || !stitchFrame2File) {
-      alert('Пожалуйста, выберите оба кадра по 180°:\n• Кадр 1 (первая половина комнаты)\n• Кадр 2 (вторая половина с перекрытием)');
-      return;
-    }
-
-    if (stitchProgressIndicator) stitchProgressIndicator.classList.remove('hidden');
-    btnExecuteStitch.disabled = true;
-
-    try {
-      const formData = new FormData();
-      formData.append('frame1', stitchFrame1File);
-      formData.append('frame2', stitchFrame2File);
-
-      const response = await fetch('/api/stitch', {
-        method: 'POST',
-        body: formData
-      });
-
-      if (!response.ok) {
-        let errText = 'Ошибка сервера при сшивке панорамы';
-        try {
-          const errJson = await response.json();
-          if (errJson && errJson.message) errText = errJson.message;
-        } catch (_) {}
-        throw new Error(errText);
-      }
-
-      const result = await response.json();
-      if (result.status === 'ok' && result.image) {
-        updatePanoPreviewUI(result.image, {
-          name: 'Сшитая 360° панорама (8K)',
-          width: result.width || 8192,
-          height: 1090,
-          size: result.size
-        });
-        setPanoMode('single');
-      } else {
-        throw new Error(result.message || 'Скрипт сшивки вернул пустой результат');
-      }
-    } catch (err) {
-      console.error('Ошибка сшивки панорамы:', err);
-      alert('Ошибка при сшивке панорамы: ' + err.message + '\n\nУбедитесь, что сервер запущен (командой npm run dev или start.bat).');
-    } finally {
-      if (stitchProgressIndicator) stitchProgressIndicator.classList.add('hidden');
-      btnExecuteStitch.disabled = false;
-    }
-  });
-}
-
     }
   });
 }
@@ -3562,9 +3387,7 @@ function startViewerLoop() {
     }
 
     // Отрисовка точек интереса на 360° панораме
-    if (viewerState.showHotspots && viewerState.pano && Array.isArray(viewerState.pano.hotspots)) {
-      drawViewerHotspots(viewer360Ctx, vw, vh, viewerState.pano.hotspots);
-    }
+    // Отрисовка хотспотов в 360 панораме отключена по запросу
 
     // Отрисовка компаса вверху вьювера
     drawViewerCompass(viewer360Ctx, vw, vh, viewerState.yaw);
@@ -3782,16 +3605,231 @@ function loadDraftFromStorage() {
 // Старт приложения
 resizeCanvas();
 if (!loadDraftFromStorage()) {
-  fetch('sample-plan.json')
-    .then(r => r.json())
-    .then(data => {
-      loadJSONData(data);
-      console.log('[Editor] Загружен готовый план помещения!');
-    })
-    .catch(() => {
-      updateFloorUI();
-      render();
-    });
+  // Начинаем с чистого проекта: пустой этаж и только координатная сетка
+  state.floors = [
+    {
+      id: 'floor-1',
+      name: '1 этаж',
+      level: 1,
+      height: 3.5,
+      corners: [],
+      walls: [],
+      rooms: [],
+      pois: [],
+      panoramas: []
+    }
+  ];
+  state.activeFloorId = 'floor-1';
+  updateFloorUI();
+  render();
 }
-setTool('corner');
+setTool('select');
 render();
+
+
+// -------------------------------------------------------------
+// ПЕРЕКЛЮЧЕНИЕ СШИВКИ 360° ПАНОРАМ И СВОРАЧИВАНИЕ САЙДБАРА
+// -------------------------------------------------------------
+(function initStitchAndSidebar() {
+  // 1. Сворачивание / разворачивание левой панели
+  const btnToggleSidebar = document.getElementById('btn-toggle-sidebar');
+  const editorSidebar = document.getElementById('editor-sidebar');
+  const sidebarToggleIcon = document.getElementById('sidebar-toggle-icon');
+
+  if (btnToggleSidebar && editorSidebar) {
+    let isSidebarCollapsed = false;
+    btnToggleSidebar.addEventListener('click', (e) => {
+      e.stopPropagation();
+      isSidebarCollapsed = !isSidebarCollapsed;
+      if (isSidebarCollapsed) {
+        editorSidebar.style.width = '0px';
+        editorSidebar.style.minWidth = '0px';
+        editorSidebar.style.padding = '0px';
+        editorSidebar.style.overflow = 'hidden';
+        editorSidebar.style.borderRight = 'none';
+        btnToggleSidebar.style.right = '-28px';
+        if (sidebarToggleIcon) {
+          sidebarToggleIcon.className = 'fa-solid fa-chevron-right text-[10px]';
+        }
+        btnToggleSidebar.title = 'Развернуть панель';
+      } else {
+        editorSidebar.style.width = '';
+        editorSidebar.style.minWidth = '';
+        editorSidebar.style.padding = '';
+        editorSidebar.style.overflow = '';
+        editorSidebar.style.borderRight = '';
+        btnToggleSidebar.style.right = '-14px';
+        if (sidebarToggleIcon) {
+          sidebarToggleIcon.className = 'fa-solid fa-chevron-left text-[10px]';
+        }
+        btnToggleSidebar.title = 'Свернуть панель';
+      }
+      setTimeout(resizeCanvas, 100);
+    });
+  }
+
+  // 2. Вкладки режимов панорамы (Одиночная 360° / Сшивка из двух 180°)
+  const tabPanoModeSingle = document.getElementById('tab-pano-mode-single');
+  const tabPanoModeStitch = document.getElementById('tab-pano-mode-stitch');
+  const panoSingleModeContainer = document.getElementById('pano-single-mode-container');
+  const panoStitchModeContainer = document.getElementById('pano-stitch-mode-container');
+
+  const inputStitchFrame1 = document.getElementById('input-stitch-frame1');
+  const dropzoneStitchFrame1 = document.getElementById('dropzone-stitch-frame1');
+  const stitchFrame1Name = document.getElementById('stitch-frame1-name');
+
+  const inputStitchFrame2 = document.getElementById('input-stitch-frame2');
+  const dropzoneStitchFrame2 = document.getElementById('dropzone-stitch-frame2');
+  const stitchFrame2Name = document.getElementById('stitch-frame2-name');
+
+  const btnExecuteStitch = document.getElementById('btn-execute-stitch');
+  const stitchProgressIndicator = document.getElementById('stitch-progress-indicator');
+
+  let stitchFrame1File = null;
+  let stitchFrame2File = null;
+
+  function switchPanoMode(mode) {
+    if (mode === 'single') {
+      if (tabPanoModeSingle) {
+        tabPanoModeSingle.className = 'flex-1 py-1.5 px-3 rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 transition bg-indigo-600 text-white shadow cursor-pointer';
+      }
+      if (tabPanoModeStitch) {
+        tabPanoModeStitch.className = 'flex-1 py-1.5 px-3 rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 transition text-slate-300 hover:text-white hover:bg-slate-800 cursor-pointer';
+      }
+      if (panoSingleModeContainer) panoSingleModeContainer.classList.remove('hidden');
+      if (panoStitchModeContainer) panoStitchModeContainer.classList.add('hidden');
+    } else {
+      if (tabPanoModeStitch) {
+        tabPanoModeStitch.className = 'flex-1 py-1.5 px-3 rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 transition bg-indigo-600 text-white shadow cursor-pointer';
+      }
+      if (tabPanoModeSingle) {
+        tabPanoModeSingle.className = 'flex-1 py-1.5 px-3 rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 transition text-slate-300 hover:text-white hover:bg-slate-800 cursor-pointer';
+      }
+      if (panoSingleModeContainer) panoSingleModeContainer.classList.add('hidden');
+      if (panoStitchModeContainer) panoStitchModeContainer.classList.remove('hidden');
+    }
+  }
+
+  if (tabPanoModeSingle) {
+    tabPanoModeSingle.onclick = (e) => { e.preventDefault(); e.stopPropagation(); switchPanoMode('single'); };
+  }
+  if (tabPanoModeStitch) {
+    tabPanoModeStitch.onclick = (e) => { e.preventDefault(); e.stopPropagation(); switchPanoMode('stitch'); };
+  }
+
+  function updateFrameUI(num, file) {
+    const dropzone = num === 1 ? dropzoneStitchFrame1 : dropzoneStitchFrame2;
+    const nameBadge = num === 1 ? stitchFrame1Name : stitchFrame2Name;
+    if (!dropzone) return;
+
+    if (file) {
+      if (nameBadge) nameBadge.innerText = file.name;
+      dropzone.className = 'border-2 border-emerald-500/60 bg-emerald-950/20 rounded-xl p-3 text-center cursor-pointer transition flex flex-col items-center justify-center gap-1.5 shadow-sm';
+      dropzone.innerHTML = `
+        <i class="fa-solid fa-circle-check text-emerald-400 text-lg"></i>
+        <span class="text-xs text-emerald-300 font-bold truncate max-w-[140px]">${file.name}</span>
+        <span class="text-[10px] text-emerald-400/80">${(file.size / 1024 / 1024).toFixed(1)} МБ · Заменить</span>
+      `;
+    } else {
+      if (nameBadge) nameBadge.innerText = '';
+      dropzone.className = 'border-2 border-dashed border-slate-700 hover:border-indigo-400 bg-slate-950/60 rounded-xl p-3 text-center cursor-pointer transition flex flex-col items-center justify-center gap-1.5';
+      dropzone.innerHTML = `
+        <i class="fa-solid fa-camera text-slate-400 text-lg"></i>
+        <span class="text-xs text-slate-300 font-medium">Выберите кадр ${num}</span>
+        <span class="text-[10px] text-slate-500">HEIC или JPG</span>
+      `;
+    }
+  }
+
+  if (dropzoneStitchFrame1 && inputStitchFrame1) {
+    dropzoneStitchFrame1.onclick = () => inputStitchFrame1.click();
+    inputStitchFrame1.onchange = (e) => {
+      if (e.target.files && e.target.files[0]) {
+        stitchFrame1File = e.target.files[0];
+        updateFrameUI(1, stitchFrame1File);
+      }
+    };
+    dropzoneStitchFrame1.ondragover = (e) => { e.preventDefault(); dropzoneStitchFrame1.classList.add('border-indigo-400'); };
+    dropzoneStitchFrame1.ondragleave = () => { dropzoneStitchFrame1.classList.remove('border-indigo-400'); };
+    dropzoneStitchFrame1.ondrop = (e) => {
+      e.preventDefault();
+      dropzoneStitchFrame1.classList.remove('border-indigo-400');
+      if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+        stitchFrame1File = e.dataTransfer.files[0];
+        updateFrameUI(1, stitchFrame1File);
+      }
+    };
+  }
+
+  if (dropzoneStitchFrame2 && inputStitchFrame2) {
+    dropzoneStitchFrame2.onclick = () => inputStitchFrame2.click();
+    inputStitchFrame2.onchange = (e) => {
+      if (e.target.files && e.target.files[0]) {
+        stitchFrame2File = e.target.files[0];
+        updateFrameUI(2, stitchFrame2File);
+      }
+    };
+    dropzoneStitchFrame2.ondragover = (e) => { e.preventDefault(); dropzoneStitchFrame2.classList.add('border-indigo-400'); };
+    dropzoneStitchFrame2.ondragleave = () => { dropzoneStitchFrame2.classList.remove('border-indigo-400'); };
+    dropzoneStitchFrame2.ondrop = (e) => {
+      e.preventDefault();
+      dropzoneStitchFrame2.classList.remove('border-indigo-400');
+      if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+        stitchFrame2File = e.dataTransfer.files[0];
+        updateFrameUI(2, stitchFrame2File);
+      }
+    };
+  }
+
+  if (btnExecuteStitch) {
+    btnExecuteStitch.onclick = async (e) => {
+      e.preventDefault();
+      if (!stitchFrame1File || !stitchFrame2File) {
+        alert('Пожалуйста, выберите оба кадра по 180°:\n• Кадр 1 (первая половина комнаты)\n• Кадр 2 (вторая половина с перекрытием)');
+        return;
+      }
+
+      if (stitchProgressIndicator) stitchProgressIndicator.classList.remove('hidden');
+      btnExecuteStitch.disabled = true;
+
+      try {
+        const formData = new FormData();
+        formData.append('frame1', stitchFrame1File);
+        formData.append('frame2', stitchFrame2File);
+
+        const response = await fetch('/api/stitch', {
+          method: 'POST',
+          body: formData
+        });
+
+        if (!response.ok) {
+          let errText = 'Ошибка сервера при сшивке панорамы';
+          try {
+            const errJson = await response.json();
+            if (errJson && errJson.message) errText = errJson.message;
+          } catch (_) {}
+          throw new Error(errText);
+        }
+
+        const result = await response.json();
+        if (result.status === 'ok' && result.image) {
+          updatePanoPreviewUI(result.image, {
+            name: 'Сшитая 360° панорама (8K)',
+            width: result.width || 8192,
+            height: 1090,
+            size: result.size
+          });
+          switchPanoMode('single');
+        } else {
+          throw new Error(result.message || 'Скрипт сшивки вернул пустой результат');
+        }
+      } catch (err) {
+        console.error('Ошибка сшивки панорамы:', err);
+        alert('Ошибка при сшивке панорамы: ' + err.message + '\n\nУбедитесь, что запущен сервер (npm run dev).');
+      } finally {
+        if (stitchProgressIndicator) stitchProgressIndicator.classList.add('hidden');
+        btnExecuteStitch.disabled = false;
+      }
+    };
+  }
+})();
