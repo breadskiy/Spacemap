@@ -1360,6 +1360,110 @@ document.getElementById('btn-reset-view')?.addEventListener('click', () => {
   render();
 });
 
+// Мобильное открытие/закрытие панели этажей и параметров
+const editorSidebar = document.getElementById('editor-sidebar');
+const sidebarBackdrop = document.getElementById('sidebar-backdrop');
+const btnToggleSidebar = document.getElementById('btn-toggle-sidebar');
+const btnCloseSidebar = document.getElementById('btn-close-sidebar');
+
+function openMobileSidebar() {
+  editorSidebar?.classList.remove('-translate-x-full');
+  sidebarBackdrop?.classList.remove('hidden');
+}
+
+function closeMobileSidebar() {
+  editorSidebar?.classList.add('-translate-x-full');
+  sidebarBackdrop?.classList.add('hidden');
+}
+
+btnToggleSidebar?.addEventListener('click', openMobileSidebar);
+btnCloseSidebar?.addEventListener('click', closeMobileSidebar);
+sidebarBackdrop?.addEventListener('click', closeMobileSidebar);
+
+// Поддержка сенсорных экранов (смартфоны и планшеты)
+let lastTouchDist = 0;
+let touchStartPoint = { x: 0, y: 0 };
+let touchMoved = false;
+
+canvas.addEventListener('touchstart', e => {
+  if (e.touches.length === 1) {
+    const t = e.touches[0];
+    const rect = canvas.getBoundingClientRect();
+    touchStartPoint = { x: t.clientX - rect.left, y: t.clientY - rect.top };
+    touchMoved = false;
+
+    const mouseEvent = new MouseEvent('mousedown', {
+      clientX: t.clientX,
+      clientY: t.clientY,
+      button: 0,
+      bubbles: true
+    });
+    canvas.dispatchEvent(mouseEvent);
+  } else if (e.touches.length === 2) {
+    e.preventDefault();
+    const t1 = e.touches[0];
+    const t2 = e.touches[1];
+    lastTouchDist = Math.hypot(t2.clientX - t1.clientX, t2.clientY - t1.clientY);
+    const rect = canvas.getBoundingClientRect();
+    const midX = ((t1.clientX + t2.clientX) / 2) - rect.left;
+    const midY = ((t1.clientY + t2.clientY) / 2) - rect.top;
+    state.isPanning = true;
+    state.panStart = { x: midX - state.pan.x, y: midY - state.pan.y };
+  }
+}, { passive: false });
+
+canvas.addEventListener('touchmove', e => {
+  if (e.touches.length === 1) {
+    const t = e.touches[0];
+    const rect = canvas.getBoundingClientRect();
+    const curX = t.clientX - rect.left;
+    const curY = t.clientY - rect.top;
+    if (Math.hypot(curX - touchStartPoint.x, curY - touchStartPoint.y) > 5) {
+      touchMoved = true;
+    }
+    const mouseEvent = new MouseEvent('mousemove', {
+      clientX: t.clientX,
+      clientY: t.clientY,
+      button: 0,
+      bubbles: true
+    });
+    window.dispatchEvent(mouseEvent);
+  } else if (e.touches.length === 2) {
+    e.preventDefault();
+    const t1 = e.touches[0];
+    const t2 = e.touches[1];
+    const rect = canvas.getBoundingClientRect();
+    const midX = ((t1.clientX + t2.clientX) / 2) - rect.left;
+    const midY = ((t1.clientY + t2.clientY) / 2) - rect.top;
+
+    const newDist = Math.hypot(t2.clientX - t1.clientX, t2.clientY - t1.clientY);
+    if (lastTouchDist > 0) {
+      const zoomFactor = newDist / lastTouchDist;
+      const worldBefore = screenToWorld(midX, midY);
+      state.zoom = Math.min(Math.max(0.2, state.zoom * zoomFactor), 4.0);
+      state.pan.x = midX - worldBefore.x * state.zoom;
+      state.pan.y = midY + worldBefore.y * state.zoom;
+      const zoomInd = document.getElementById('zoom-indicator');
+      if (zoomInd) zoomInd.innerText = `${Math.round(state.zoom * 100)}%`;
+      render();
+    }
+    lastTouchDist = newDist;
+
+    state.pan.x = midX - state.panStart.x;
+    state.pan.y = midY - state.panStart.y;
+    render();
+  }
+}, { passive: false });
+
+canvas.addEventListener('touchend', e => {
+  if (e.touches.length === 0) {
+    state.isPanning = false;
+    lastTouchDist = 0;
+    const mouseEvent = new MouseEvent('mouseup', { bubbles: true });
+    window.dispatchEvent(mouseEvent);
+  }
+});
+
 // -------------------------------------------------------------
 // ВЫБОР ЭТАЖА И СПИСКИ ВЕРШИН / СТЕН / МЕТОК
 // -------------------------------------------------------------

@@ -11,59 +11,64 @@
 <body class="bg-slate-900 text-slate-100 h-screen flex flex-col overflow-hidden font-sans select-none">
 
   <!-- Шапка приложения -->
-  <header class="bg-slate-800 border-b border-slate-700 px-5 py-3 flex items-center justify-between shadow-md z-20">
-    <div class="flex items-center gap-3">
-      <div class="bg-red-600 text-white p-2 rounded-lg font-black text-lg tracking-wider flex items-center justify-center w-10 h-10 shadow">
+  <header class="bg-slate-800 border-b border-slate-700 px-3 sm:px-5 py-2.5 flex items-center justify-between shadow-md z-20 gap-2 overflow-x-auto no-scrollbar">
+    <div class="flex items-center gap-2 sm:gap-3 shrink-0">
+      <!-- Кнопка вызова боковой панели на мобильных -->
+      <button id="btn-toggle-sidebar" class="md:hidden bg-slate-700 hover:bg-slate-600 text-white p-2 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition border border-slate-600" title="Открыть список этажей и объектов">
+        <i class="fa-solid fa-layer-group text-red-500 text-sm"></i>
+      </button>
+
+      <div class="bg-red-600 text-white p-1.5 sm:p-2 rounded-lg font-black text-sm sm:text-base tracking-wider flex items-center justify-center size-8 sm:size-9 shadow shrink-0">
         ТТК
       </div>
-      <div>
-        <h1 class="text-base font-bold text-white tracking-wide">Редактор планов этажей</h1>
-        <p class="text-xs text-slate-400">Углы, стены и многоэтажность</p>
+      <div class="hidden sm:block">
+        <h1 class="text-sm sm:text-base font-bold text-white tracking-wide">Конструктор планов</h1>
+        <p class="text-[10px] sm:text-xs text-slate-400">Углы, стены и метки</p>
       </div>
     </div>
 
     <!-- Переключатель инструментов -->
-    <div class="flex items-center bg-slate-900/80 p-1 rounded-xl border border-slate-700 gap-1">
-      <button id="tool-corner" class="tool-btn px-3 py-1.5 rounded-lg text-sm flex items-center gap-2 transition active-tool" title="Поставить точку (клик в пустоту) или перетащить (зажать точку)">
+    <div class="flex items-center bg-slate-900/80 p-1 rounded-xl border border-slate-700 gap-1 shrink-0">
+      <button id="tool-corner" class="tool-btn px-2.5 sm:px-3 py-1.5 rounded-lg text-xs sm:text-sm flex items-center gap-1.5 transition active-tool" title="Поставить точку или переместить">
         <i class="fa-solid fa-circle-dot text-amber-400"></i>
         <span>Точка</span>
       </button>
-      <button id="tool-wall" class="tool-btn px-3 py-1.5 rounded-lg text-sm flex items-center gap-2 transition hover:bg-slate-800 text-slate-300" title="Рисовать стены цепочкой (клик начало, клик конец, Esc — отмена)">
+      <button id="tool-wall" class="tool-btn px-2.5 sm:px-3 py-1.5 rounded-lg text-xs sm:text-sm flex items-center gap-1.5 transition hover:bg-slate-800 text-slate-300" title="Рисовать стены цепочкой (Shift — 90°, Esc — отмена)">
         <i class="fa-solid fa-draw-polygon text-emerald-400"></i>
         <span>Стена</span>
       </button>
-      <button id="tool-poi" class="tool-btn px-3 py-1.5 rounded-lg text-sm flex items-center gap-2 transition hover:bg-slate-800 text-slate-300" title="Метка стенда / зала">
+      <button id="tool-poi" class="tool-btn px-2.5 sm:px-3 py-1.5 rounded-lg text-xs sm:text-sm flex items-center gap-1.5 transition hover:bg-slate-800 text-slate-300" title="Метка стенда / зала">
         <i class="fa-solid fa-location-dot text-red-500"></i>
         <span>Метка</span>
       </button>
-      <button id="tool-delete" class="tool-btn px-3 py-1.5 rounded-lg text-sm flex items-center gap-2 transition hover:bg-slate-800 text-slate-300" title="Удалить элемент кликом">
+      <button id="tool-delete" class="tool-btn px-2.5 sm:px-3 py-1.5 rounded-lg text-xs sm:text-sm flex items-center gap-1.5 transition hover:bg-slate-800 text-slate-300" title="Удалить кликом">
         <i class="fa-solid fa-trash-can text-rose-400"></i>
-        <span>Удаление</span>
+        <span class="hidden sm:inline">Удаление</span>
       </button>
     </div>
 
     <!-- Экспорт / Импорт / Подложка -->
-    <div class="flex items-center gap-2">
-      <label class="cursor-pointer bg-slate-700 hover:bg-slate-600 text-white px-3 py-2 rounded-lg text-xs font-medium flex items-center gap-2 transition border border-slate-600" title="Загрузить чертёж или схему (PNG, JPG)">
+    <div class="flex items-center gap-1.5 shrink-0">
+      <label class="cursor-pointer bg-slate-700 hover:bg-slate-600 text-white px-2.5 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5 transition border border-slate-600" title="Загрузить чертёж или схему (PNG, JPG)">
         <i class="fa-solid fa-image text-emerald-400"></i>
-        <span>Подложка</span>
+        <span class="hidden sm:inline">Подложка</span>
         <input type="file" id="bg-plan-input" accept="image/*" class="hidden">
       </label>
 
-      <label class="cursor-pointer bg-slate-700 hover:bg-slate-600 text-white px-3 py-2 rounded-lg text-xs font-medium flex items-center gap-2 transition border border-slate-600">
+      <label class="cursor-pointer bg-slate-700 hover:bg-slate-600 text-white px-2.5 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5 transition border border-slate-600" title="Импорт схемы JSON">
         <i class="fa-solid fa-file-import text-blue-400"></i>
-        <span>Загрузить JSON</span>
+        <span class="hidden md:inline">Импорт JSON</span>
         <input type="file" id="json-file-input" accept=".json" class="hidden">
       </label>
 
-      <button id="btn-export-json" class="bg-red-600 hover:bg-red-500 text-white px-3 py-2 rounded-lg text-xs font-semibold flex items-center gap-2 transition shadow shadow-red-600/30">
+      <button id="btn-export-json" class="bg-red-600 hover:bg-red-500 text-white px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition shadow shadow-red-600/30" title="Сохранить схему в файл JSON">
         <i class="fa-solid fa-download"></i>
-        <span>Сохранить JSON</span>
+        <span class="hidden sm:inline">Экспорт</span>
       </button>
 
-      <button id="btn-view-json" class="bg-slate-700 hover:bg-slate-600 text-slate-300 px-3 py-2 rounded-lg text-xs font-medium flex items-center gap-2 transition border border-slate-600" title="Посмотреть код">
+      <button id="btn-view-json" class="bg-slate-700 hover:bg-slate-600 text-slate-300 px-2.5 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5 transition border border-slate-600" title="Посмотреть JSON-код">
         <i class="fa-solid fa-code"></i>
-        <span>Код</span>
+        <span class="hidden md:inline">Код</span>
       </button>
     </div>
   </header>
@@ -71,8 +76,21 @@
   <!-- Основное рабочее пространство -->
   <div class="flex-1 flex overflow-hidden relative">
     
-    <!-- Левая панель: Этажи, Вершины и Стены -->
-    <aside class="w-80 bg-slate-800/95 border-r border-slate-700 flex flex-col z-10 shadow-lg text-slate-200">
+    <!-- Затемнение фона на мобильных при открытии боковой панели -->
+    <div id="sidebar-backdrop" class="fixed inset-0 bg-black/60 z-20 hidden md:hidden backdrop-blur-xs"></div>
+
+    <!-- Левая панель: Этажи, Вершины и Стены (на мобилках выезжает сбоку) -->
+    <aside id="editor-sidebar" class="w-80 bg-slate-800/98 border-r border-slate-700 flex flex-col z-30 shadow-2xl text-slate-200 transition-transform duration-200 md:static fixed inset-y-0 left-0 -translate-x-full md:translate-x-0">
+      
+      <!-- Мобильная шапка панели с кнопкой закрытия -->
+      <div class="md:hidden flex items-center justify-between p-3 border-b border-slate-700 bg-slate-900/80">
+        <span class="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-1.5">
+          <i class="fa-solid fa-layer-group text-red-500"></i> Панель параметров
+        </span>
+        <button id="btn-close-sidebar" class="size-7 rounded-lg bg-slate-800 text-slate-400 hover:text-white flex items-center justify-center">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
       
       <!-- Вкладки управления -->
       <div class="flex border-b border-slate-700 bg-slate-900/60 p-1.5 gap-1 text-xs">
@@ -186,20 +204,20 @@
       <canvas id="viewport-canvas" class="w-full h-full block"></canvas>
 
       <!-- Парящая плашка подсказок -->
-      <div class="absolute bottom-5 left-6 bg-slate-800/95 backdrop-blur-md border border-slate-700/80 px-4 py-2.5 rounded-xl shadow-xl text-xs text-slate-300 flex items-center gap-3 select-none">
-        <div id="status-hint" class="flex items-center gap-2">
-          <i class="fa-solid fa-circle-info text-blue-400"></i>
-          <span>Выберите инструмент для работы</span>
+      <div class="absolute bottom-4 left-4 right-14 sm:right-auto sm:left-6 bg-slate-800/95 backdrop-blur-md border border-slate-700/80 px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl shadow-xl text-xs text-slate-300 flex items-center gap-2.5 select-none max-w-full truncate">
+        <div id="status-hint" class="flex items-center gap-2 truncate">
+          <i class="fa-solid fa-circle-info text-blue-400 shrink-0"></i>
+          <span class="truncate">Выберите инструмент для работы</span>
         </div>
-        <div class="h-3 w-px bg-slate-600"></div>
-        <div class="text-[11px] text-slate-400 flex items-center gap-2">
+        <div class="hidden sm:block h-3 w-px bg-slate-600 shrink-0"></div>
+        <div class="hidden sm:flex text-[11px] text-slate-400 items-center gap-2 shrink-0">
           <span>Сетка: <strong>20px</strong></span>
           <span>·</span>
           <span>Масштаб: <strong id="zoom-indicator">100%</strong></span>
           <span>·</span>
-          <span class="text-slate-400" title="Нажмите колесико мыши или зажмите Пробел для панорамирования">🖱️ Нажатие колесика / Пробел: сдвиг</span>
+          <span class="text-slate-400" title="Нажмите колесико мыши или зажмите Пробел для панорамирования">🖱️ Колесико / Пробел: сдвиг</span>
           <span>·</span>
-          <span class="text-slate-400" title="Двойной клик на пустое место центрирует холст">2x клик: центр</span>
+          <span class="text-slate-400">2x клик: центр</span>
         </div>
       </div>
 

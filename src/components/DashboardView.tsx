@@ -28,9 +28,9 @@ export function DashboardView({
   }
 
   return (
-    <div className="mx-auto w-full max-w-6xl px-5 py-8 sm:px-8">
+    <div className="mx-auto w-full max-w-6xl px-4 sm:px-8 py-6 sm:py-8">
       {/* Шапка кабинета / каталога */}
-      <div className="flex items-center justify-between border-b border-[#e9e9ec] pb-6">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-[#e9e9ec] pb-6">
         <div>
           <h1 className="text-2xl sm:text-3xl font-extrabold text-[#111113]">
             {user ? 'Личный кабинет' : 'Мероприятия и планы зданий'}
@@ -46,7 +46,7 @@ export function DashboardView({
         {user && spaces.length > 0 && (
           <button
             onClick={onOpenCreate}
-            className="inline-flex h-9 items-center gap-1.5 rounded-full bg-[#e30613] px-4 text-xs font-semibold text-white hover:bg-[#c40511] transition-colors"
+            className="inline-flex h-10 sm:h-9 items-center justify-center gap-1.5 rounded-full bg-[#e30613] px-5 sm:px-4 text-xs font-bold sm:font-semibold text-white hover:bg-[#c40511] transition-colors shadow-sm"
           >
             <svg className="size-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.2} d="M12 4v16m8-8H4" />
