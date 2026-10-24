@@ -186,14 +186,20 @@
       <canvas id="viewport-canvas" class="w-full h-full block"></canvas>
 
       <!-- Парящая плашка подсказок -->
-      <div class="absolute bottom-5 left-6 bg-slate-800/90 backdrop-blur-md border border-slate-700/80 px-4 py-2.5 rounded-xl shadow-xl text-xs text-slate-300 pointer-events-none flex items-center gap-3">
+      <div class="absolute bottom-5 left-6 bg-slate-800/95 backdrop-blur-md border border-slate-700/80 px-4 py-2.5 rounded-xl shadow-xl text-xs text-slate-300 flex items-center gap-3 select-none">
         <div id="status-hint" class="flex items-center gap-2">
           <i class="fa-solid fa-circle-info text-blue-400"></i>
           <span>Выберите инструмент для работы</span>
         </div>
         <div class="h-3 w-px bg-slate-600"></div>
-        <div class="text-[11px] text-slate-400">
-          Сетка: <strong>20px</strong> | Масштаб: <span id="zoom-indicator">100%</span>
+        <div class="text-[11px] text-slate-400 flex items-center gap-2">
+          <span>Сетка: <strong>20px</strong></span>
+          <span>·</span>
+          <span>Масштаб: <strong id="zoom-indicator">100%</strong></span>
+          <span>·</span>
+          <span class="text-slate-400" title="Нажмите колесико мыши или зажмите Пробел для панорамирования">🖱️ Нажатие колесика / Пробел: сдвиг</span>
+          <span>·</span>
+          <span class="text-slate-400" title="Двойной клик на пустое место центрирует холст">2x клик: центр</span>
         </div>
       </div>
 
@@ -385,7 +391,23 @@
       <form id="form-edit-poi" class="p-4 space-y-3">
         <div class="space-y-1">
           <label class="text-xs text-slate-300 font-medium">Название зоны или стенда:</label>
-          <input type="text" id="input-poi-name" required placeholder="Стенд №1, Лекторий, Вход..." class="w-full bg-slate-900 border border-slate-600 focus:border-red-500 rounded-lg px-3 py-2 text-xs text-white focus:outline-none">
+          <input type="text" id="input-poi-name" required placeholder="Например: Стенд №12 (ТТК)" class="w-full bg-slate-900 border border-slate-600 focus:border-red-500 rounded-lg px-3 py-2 text-xs text-white focus:outline-none">
+        </div>
+        <div class="space-y-1">
+          <label class="text-xs text-slate-300 font-medium">Тип объекта:</label>
+          <select id="select-poi-category" class="w-full bg-slate-900 border border-slate-600 focus:border-red-500 rounded-lg px-3 py-2 text-xs text-white focus:outline-none">
+            <option value="stand">🏢 Выставочный стенд / Экспозиция</option>
+            <option value="expo">🖼️ Выставка / Экспонат / Арт</option>
+            <option value="cafe">☕ Кафе / Кофе-зона</option>
+            <option value="food">🍔 Фудкорт / Ресторан</option>
+            <option value="shop">🛍️ Магазин / Мерч / Торговая точка</option>
+            <option value="stage">🎤 Сцена / Лекторий / Зал</option>
+            <option value="info">ℹ️ Инфостойка / Регистрация</option>
+            <option value="exit">🚪 Вход / Выход</option>
+            <option value="wc">🚻 Санузел / WC</option>
+            <option value="atm">💳 Банкомат</option>
+            <option value="firstaid">🏥 Медпункт</option>
+          </select>
         </div>
         <div class="flex justify-end gap-2 pt-2 border-t border-slate-700/60">
           <button type="button" id="btn-cancel-poi-modal" class="text-xs px-3 py-2 rounded-lg bg-slate-700 hover:bg-slate-600 text-slate-300 transition">

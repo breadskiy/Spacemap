@@ -182,6 +182,7 @@ function render() {
         const midX = (scPos.x + curPos.x) / 2;
         const midY = (scPos.y + curPos.y) / 2;
         drawLengthBadge(`${tempDist} px`, midX, midY, true);
+        drawEscapeHintBadge("Esc или ПКМ — отпустить", curPos.x, curPos.y - (20 / state.zoom));
       }
     }
 
@@ -307,21 +308,75 @@ function drawCartesianGrid() {
   ctx.restore();
 }
 
+// Поиск замкнутых циклов стен для аккуратной заливки комнат
+function getWallPolygons(floor) {
+  if (!floor || !floor.walls || floor.walls.length < 3 || !floor.corners || floor.corners.length < 3) return [];
+
+  const adj = new Map();
+  floor.corners.forEach(c => adj.set(c.id, []));
+  floor.walls.forEach(w => {
+    if (adj.has(w.from) && adj.has(w.to)) {
+      if (!adj.get(w.from).includes(w.to)) adj.get(w.from).push(w.to);
+      if (!adj.get(w.to).includes(w.from)) adj.get(w.to).push(w.from);
+    }
+  });
+
+  const cornerMap = new Map(floor.corners.map(c => [c.id, c]));
+  const foundCycles = [];
+  const seenCanonical = new Set();
+
+  function dfs(startNode, currNode, visited, path) {
+    const neighbors = adj.get(currNode) || [];
+    for (const next of neighbors) {
+      if (path.length > 1 && next === path[path.length - 2]) continue;
+      if (next === startNode && path.length >= 3) {
+        const cycle = [...path];
+        const canon = [...cycle].sort().join('-');
+        if (!seenCanonical.has(canon)) {
+          seenCanonical.add(canon);
+          const pts = cycle.map(id => cornerMap.get(id)).filter(Boolean);
+          if (pts.length >= 3) foundCycles.push(pts);
+        }
+        continue;
+      }
+      if (!visited.has(next) && path.length < 24) {
+        visited.add(next);
+        dfs(startNode, next, visited, [...path, next]);
+        visited.delete(next);
+      }
+    }
+  }
+
+  floor.corners.forEach(c => {
+    if ((adj.get(c.id) || []).length >= 2) {
+      dfs(c.id, c.id, new Set([c.id]), [c.id]);
+    }
+  });
+
+  return foundCycles;
+}
+
 function drawRoomFills(floor) {
-  if (floor.corners.length >= 3 && floor.walls.length >= 3) {
-    ctx.save();
-    ctx.fillStyle = 'rgba(239, 68, 68, 0.04)';
+  const cycles = getWallPolygons(floor);
+  if (cycles.length === 0) return;
+
+  ctx.save();
+  cycles.forEach(pts => {
+    ctx.fillStyle = 'rgba(239, 68, 68, 0.05)';
+    ctx.strokeStyle = 'rgba(239, 68, 68, 0.25)';
+    ctx.lineWidth = 1 / state.zoom;
     ctx.beginPath();
-    const first = worldToCanvas(floor.corners[0].x, floor.corners[0].y);
+    const first = worldToCanvas(pts[0].x, pts[0].y);
     ctx.moveTo(first.x, first.y);
-    for (let i = 1; i < floor.corners.length; i++) {
-      const pt = worldToCanvas(floor.corners[i].x, floor.corners[i].y);
-      ctx.lineTo(pt.x, pt.y);
+    for (let i = 1; i < pts.length; i++) {
+      const p = worldToCanvas(pts[i].x, pts[i].y);
+      ctx.lineTo(p.x, p.y);
     }
     ctx.closePath();
     ctx.fill();
-    ctx.restore();
-  }
+    ctx.stroke();
+  });
+  ctx.restore();
 }
 
 function drawWalls(floor) {
@@ -366,6 +421,30 @@ function drawLengthBadge(text, x, y, isHighlight = false) {
   ctx.stroke();
 
   ctx.fillStyle = isHighlight ? '#38bdf8' : '#94a3b8';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(text, x, y);
+  ctx.restore();
+}
+
+function drawEscapeHintBadge(text, x, y) {
+  ctx.save();
+  const fontSize = Math.max(9, 10 / state.zoom);
+  ctx.font = `bold ${fontSize}px sans-serif`;
+  const textWidth = ctx.measureText(text).width;
+  const paddingX = 6 / state.zoom;
+  const h = 16 / state.zoom;
+
+  ctx.fillStyle = 'rgba(15, 23, 42, 0.92)';
+  ctx.strokeStyle = '#f59e0b';
+  ctx.lineWidth = 1 / state.zoom;
+
+  ctx.beginPath();
+  ctx.roundRect(x - textWidth / 2 - paddingX, y - h / 2, textWidth + paddingX * 2, h, 4 / state.zoom);
+  ctx.fill();
+  ctx.stroke();
+
+  ctx.fillStyle = '#fbbf24';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.fillText(text, x, y);
@@ -446,18 +525,33 @@ function drawCornerCoordsBadge(corner, canvasPos, radius, isHighlight) {
   ctx.restore();
 }
 
+const POI_CATEGORIES = {
+  stand: { label: 'Стенд / Экспозиция', color: '#ef4444', icon: '🏢' },
+  expo: { label: 'Выставка / Арт', color: '#ec4899', icon: '🖼️' },
+  cafe: { label: 'Кафе / Кофе-зона', color: '#f59e0b', icon: '☕' },
+  food: { label: 'Фудкорт / Еда', color: '#f97316', icon: '🍔' },
+  shop: { label: 'Магазин / Мерч', color: '#3b82f6', icon: '🛍️' },
+  stage: { label: 'Сцена / Зал', color: '#a855f7', icon: '🎤' },
+  info: { label: 'Инфостойка', color: '#06b6d4', icon: 'ℹ️' },
+  exit: { label: 'Вход / Выход', color: '#10b981', icon: '🚪' },
+  wc: { label: 'Туалет (WC)', color: '#64748b', icon: '🚻' },
+  atm: { label: 'Банкомат', color: '#14b8a6', icon: '💳' },
+  firstaid: { label: 'Медпункт', color: '#e11d48', icon: '🏥' }
+};
+
 function drawPois(floor) {
   if (!floor.pois) return;
   floor.pois.forEach(poi => {
     const pos = worldToCanvas(poi.x, poi.y);
     const isHovered = state.hoverPoiId === poi.id;
     const isSelected = state.selectedPoiId === poi.id;
+    const cat = POI_CATEGORIES[poi.category] || POI_CATEGORIES.stand;
 
     ctx.save();
     // Внешняя метка
     ctx.beginPath();
     ctx.arc(pos.x, pos.y, (isHovered || isSelected ? 11 : 9) / state.zoom, 0, Math.PI * 2);
-    ctx.fillStyle = isHovered || isSelected ? '#ef4444' : '#e11d48';
+    ctx.fillStyle = cat.color;
     ctx.strokeStyle = '#ffffff';
     ctx.lineWidth = 2 / state.zoom;
     ctx.fill();
@@ -469,19 +563,19 @@ function drawPois(floor) {
     ctx.fillStyle = '#ffffff';
     ctx.fill();
 
-    // Бейдж с названием
+    // Бейдж с иконкой и названием
     const fontSize = Math.max(9, 10 / state.zoom);
     ctx.font = `bold ${fontSize}px sans-serif`;
-    const label = poi.name || 'Стенд';
+    const label = `${cat.icon} ${poi.name || cat.label}`;
     const textWidth = ctx.measureText(label).width;
-    const badgeH = 15 / state.zoom;
+    const badgeH = 16 / state.zoom;
     const badgeY = pos.y + (16 / state.zoom);
 
-    ctx.fillStyle = isSelected || isHovered ? 'rgba(30, 41, 59, 0.95)' : 'rgba(15, 23, 42, 0.85)';
-    ctx.strokeStyle = isSelected || isHovered ? '#ef4444' : '#334155';
+    ctx.fillStyle = isSelected || isHovered ? 'rgba(30, 41, 59, 0.95)' : 'rgba(15, 23, 42, 0.88)';
+    ctx.strokeStyle = isSelected || isHovered ? cat.color : '#334155';
     ctx.lineWidth = 1 / state.zoom;
     ctx.beginPath();
-    ctx.roundRect(pos.x - textWidth / 2 - (5 / state.zoom), badgeY - badgeH / 2, textWidth + (10 / state.zoom), badgeH, 4 / state.zoom);
+    ctx.roundRect(pos.x - textWidth / 2 - (6 / state.zoom), badgeY - badgeH / 2, textWidth + (12 / state.zoom), badgeH, 4 / state.zoom);
     ctx.fill();
     ctx.stroke();
 
@@ -517,8 +611,26 @@ function findPoiAt(wx, wy, threshold = 15 / state.zoom) {
 }
 
 // -------------------------------------------------------------
-// ОБРАБОТЧИКИ СОБЫТИЙ МЫШИ
+// ОБРАБОТЧИКИ СОБЫТИЙ МЫШИ И КЛАВИАТУРЫ
 // -------------------------------------------------------------
+
+let isSpacePressed = false;
+window.addEventListener('keydown', e => {
+  if (e.code === 'Space' && !['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement?.tagName)) {
+    isSpacePressed = true;
+    canvas.style.cursor = 'grab';
+  }
+});
+window.addEventListener('keyup', e => {
+  if (e.code === 'Space') {
+    isSpacePressed = false;
+    canvas.style.cursor = 'crosshair';
+  }
+});
+
+canvas.addEventListener('auxclick', e => {
+  if (e.button === 1) e.preventDefault();
+});
 
 canvas.addEventListener('mousedown', e => {
   const rect = canvas.getBoundingClientRect();
@@ -526,8 +638,9 @@ canvas.addEventListener('mousedown', e => {
   const sy = e.clientY - rect.top;
   const world = screenToWorld(sx, sy);
 
-  // Панорамирование
-  if (e.button === 1 || (e.shiftKey && state.tool !== 'wall')) {
+  // Панорамирование колесиком мыши (e.button === 1), пробелом или Shift
+  if (e.button === 1 || isSpacePressed || (e.shiftKey && state.tool !== 'wall')) {
+    e.preventDefault();
     state.isPanning = true;
     state.panStart = { x: sx - state.pan.x, y: sy - state.pan.y };
     canvas.style.cursor = 'grabbing';
@@ -542,6 +655,19 @@ canvas.addEventListener('mousedown', e => {
   const clickedCorner = findCornerAt(world.x, world.y);
   const clickedWall = findWallAt(world.x, world.y);
   const clickedPoi = findPoiAt(world.x, world.y);
+
+  if (clickedPoi) {
+    if (state.tool === 'delete') {
+      floor.pois = floor.pois.filter(p => p.id !== clickedPoi.id);
+      updateStatusHint(`Метка «${clickedPoi.name}» удалена.`);
+      updateFloorUI();
+      render();
+      return;
+    }
+    // Клик по метке открывает её редактирование
+    openPoiModal(clickedPoi.x, clickedPoi.y, clickedPoi);
+    return;
+  }
 
   if (state.tool === 'delete') {
     if (clickedPoi) {
@@ -568,8 +694,14 @@ canvas.addEventListener('mousedown', e => {
     if (state.tool === 'wall') {
       if (!state.wallStartCornerId) {
         state.wallStartCornerId = clickedCorner.id;
-        updateStatusHint(`Стена от точки [${clickedCorner.id}]: теперь кликните по второй точке (Shift — ровный угол)`);
-      } else if (state.wallStartCornerId !== clickedCorner.id) {
+        updateStatusHint(`Стена от точки [${clickedCorner.id}]: кликните по второй точке (Shift — ровный угол, Esc — отпустить привязку)`);
+      } else if (state.wallStartCornerId === clickedCorner.id) {
+        // Повторный клик по начальной точке отпускает привязку
+        state.wallStartCornerId = null;
+        updateStatusHint('Рисование стены завершено.');
+        render();
+        return;
+      } else {
         const c1 = floor.corners.find(c => c.id === state.wallStartCornerId);
         const exists = floor.walls.some(w =>
           (w.from === state.wallStartCornerId && w.to === clickedCorner.id) ||
@@ -583,7 +715,7 @@ canvas.addEventListener('mousedown', e => {
             to: clickedCorner.id,
             length: calcDist(c1, clickedCorner)
           });
-          updateStatusHint(`Стена построена: ${c1.id} ➔ ${clickedCorner.id}. Продолжайте кликать для следующей стены.`);
+          updateStatusHint(`Стена построена: [${c1.id}] ➔ [${clickedCorner.id}]. Кликните дальше или Esc / ПКМ для завершения.`);
         }
         state.wallStartCornerId = clickedCorner.id; // Цепочка продолжается!
         updateFloorUI();
@@ -725,7 +857,7 @@ function deleteWall(floor, wallId) {
   updateStatusHint(`Стена удалена.`);
 }
 
-// ДВОЙНОЙ КЛИК: Редактирование координат точки
+// ДВОЙНОЙ КЛИК: Редактирование точки/метки или центрирование холста
 canvas.addEventListener('dblclick', e => {
   const rect = canvas.getBoundingClientRect();
   const world = screenToWorld(e.clientX - rect.left, e.clientY - rect.top);
@@ -733,8 +865,17 @@ canvas.addEventListener('dblclick', e => {
   if (!floor) return;
 
   const clickedCorner = findCornerAt(world.x, world.y);
+  const clickedPoi = findPoiAt(world.x, world.y);
+
   if (clickedCorner) {
     openCornerEditModal(clickedCorner);
+  } else if (clickedPoi) {
+    openPoiModal(clickedPoi.x, clickedPoi.y, clickedPoi);
+  } else {
+    // Двойной клик по пустому месту — центрировать холст на этой точке!
+    centerOnPoint(world.x, world.y);
+    render();
+    updateStatusHint(`Вид центрирован на координатах (${Math.round(world.x)}, ${Math.round(world.y)})`);
   }
 });
 
@@ -900,9 +1041,14 @@ formCreateCorner?.addEventListener('submit', e => {
   updateStatusHint(`Создана точка ${newCorner.id} (${newCorner.x}, ${newCorner.y})`);
 });
 
-// Закрытие модальных окон по Esc
+// Закрытие модальных окон по Esc и горячие клавиши
 window.addEventListener('keydown', e => {
+  const isInputActive = ['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement?.tagName);
+
   if (e.key === 'Escape') {
+    if (isInputActive) {
+      document.activeElement.blur();
+    }
     closeCornerCreateModal();
     closeCornerEditModal();
     modalJson?.classList.add('hidden');
@@ -910,17 +1056,29 @@ window.addEventListener('keydown', e => {
 
     if (state.wallStartCornerId) {
       state.wallStartCornerId = null;
-      updateStatusHint('Рисование стены завершено.');
+      updateStatusHint('Рисование стены завершено (привязка сброшена).');
       render();
+      return;
     }
+
+    state.selectedCornerId = null;
+    state.selectedPoiId = null;
+    setTool('corner');
+    render();
+    return;
   }
+
+  // Если фокус в любом поле ввода, не перехватываем Delete / Backspace!
+  if (isInputActive) return;
 
   if (e.key === 'Delete' || e.key === 'Backspace') {
     const floor = getCurrentFloor();
     if (!floor) return;
     if (state.selectedPoiId) {
-      floor.pois = floor.pois.filter(p => p.id !== state.selectedPoiId);
+      const p = floor.pois.find(item => item.id === state.selectedPoiId);
+      floor.pois = floor.pois.filter(item => item.id !== state.selectedPoiId);
       state.selectedPoiId = null;
+      updateStatusHint(p ? `Метка «${p.name}» удалена.` : 'Метка удалена.');
       updateFloorUI();
       render();
     } else if (state.selectedCornerId) {
@@ -986,12 +1144,23 @@ const modalPoiEdit = document.getElementById('modal-poi-edit');
 const formEditPoi = document.getElementById('form-edit-poi');
 const inputPoiName = document.getElementById('input-poi-name');
 let currentPoiCoords = null;
+let editingPoi = null;
 
-function openPoiModal(x, y) {
+function openPoiModal(x, y, existingPoi = null) {
   currentPoiCoords = { x, y };
+  editingPoi = existingPoi;
   const floor = getCurrentFloor();
   const count = floor && floor.pois ? floor.pois.length + 1 : 1;
-  inputPoiName.value = `Стенд №${count}`;
+  const selectCat = document.getElementById('select-poi-category');
+
+  if (existingPoi) {
+    inputPoiName.value = existingPoi.name || '';
+    if (selectCat && existingPoi.category) selectCat.value = existingPoi.category;
+  } else {
+    inputPoiName.value = `Стенд №${count}`;
+    if (selectCat) selectCat.value = 'stand';
+  }
+
   modalPoiEdit.classList.remove('hidden');
   inputPoiName.focus();
   inputPoiName.select();
@@ -999,9 +1168,11 @@ function openPoiModal(x, y) {
 
 document.getElementById('btn-close-poi-modal')?.addEventListener('click', () => {
   modalPoiEdit.classList.add('hidden');
+  editingPoi = null;
 });
 document.getElementById('btn-cancel-poi-modal')?.addEventListener('click', () => {
   modalPoiEdit.classList.add('hidden');
+  editingPoi = null;
 });
 
 formEditPoi?.addEventListener('submit', e => {
@@ -1009,17 +1180,29 @@ formEditPoi?.addEventListener('submit', e => {
   const floor = getCurrentFloor();
   if (!floor || !currentPoiCoords) return;
 
-  floor.pois.push({
-    id: genId('poi'),
-    name: inputPoiName.value.trim() || 'Стенд',
-    x: currentPoiCoords.x,
-    y: currentPoiCoords.y
-  });
+  const selectCat = document.getElementById('select-poi-category');
+  const category = selectCat ? selectCat.value : 'stand';
+  const nameVal = inputPoiName.value.trim() || 'Стенд';
 
+  if (editingPoi) {
+    editingPoi.name = nameVal;
+    editingPoi.category = category;
+    updateStatusHint(`Метка «${nameVal}» обновлена.`);
+  } else {
+    floor.pois.push({
+      id: genId('poi'),
+      name: nameVal,
+      category: category,
+      x: currentPoiCoords.x,
+      y: currentPoiCoords.y
+    });
+    updateStatusHint(`Метка «${nameVal}» добавлена на карту.`);
+  }
+
+  editingPoi = null;
   modalPoiEdit.classList.add('hidden');
   updateFloorUI();
   render();
-  updateStatusHint(`Метка «${inputPoiName.value}» добавлена на карту.`);
 });
 
 // Мышь и перемещение
@@ -1431,21 +1614,30 @@ function renderPoisList(floor) {
 
   floor.pois.forEach(poi => {
     const isSelected = state.selectedPoiId === poi.id;
+    const cat = POI_CATEGORIES[poi.category] || POI_CATEGORIES.stand;
     const card = document.createElement('div');
     card.className = `p-2 px-3 rounded-lg border text-xs flex items-center justify-between transition cursor-pointer ${
       isSelected 
-        ? 'bg-rose-500/15 border-rose-500 text-white' 
+        ? 'bg-red-500/15 border-red-500 text-white' 
         : 'bg-slate-900/60 border-slate-700/60 hover:border-slate-500 text-slate-300'
     }`;
 
     card.innerHTML = `
       <div class="flex items-center gap-2">
-        <i class="fa-solid fa-location-dot text-rose-500"></i>
-        <span class="font-semibold text-slate-200">${poi.name}</span>
+        <span class="text-sm">${cat.icon}</span>
+        <div>
+          <div class="font-semibold text-slate-200 text-xs">${poi.name}</div>
+          <div class="text-[10px] text-slate-400 font-mono">${cat.label} · (${poi.x}, ${poi.y})</div>
+        </div>
       </div>
-      <button class="btn-del-poi text-slate-400 hover:text-rose-400 p-1 rounded transition" title="Удалить метку">
-        <i class="fa-solid fa-trash"></i>
-      </button>
+      <div class="flex items-center gap-1">
+        <button class="btn-edit-poi text-slate-400 hover:text-amber-400 p-1 rounded transition" title="Изменить">
+          <i class="fa-solid fa-pen-to-square"></i>
+        </button>
+        <button class="btn-del-poi text-slate-400 hover:text-rose-400 p-1 rounded transition" title="Удалить">
+          <i class="fa-solid fa-trash"></i>
+        </button>
+      </div>
     `;
 
     card.addEventListener('click', e => {
@@ -1454,6 +1646,11 @@ function renderPoisList(floor) {
       centerOnPoint(poi.x, poi.y);
       render();
       renderPoisList(floor);
+    });
+
+    card.querySelector('.btn-edit-poi')?.addEventListener('click', e => {
+      e.stopPropagation();
+      openPoiModal(poi.x, poi.y, poi);
     });
 
     card.querySelector('.btn-del-poi').addEventListener('click', e => {
