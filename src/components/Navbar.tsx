@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react'
 import type { UserProfile } from '../types/auth'
 
 interface NavbarProps {
-  currentTab: 'landing' | 'dashboard' | 'editor'
+  currentTab: 'landing' | 'dashboard' | 'editor' | 'viewer'
   onNavigate: (tab: 'landing' | 'dashboard') => void
   user: UserProfile | null
   onOpenAuth: (tab: 'login' | 'register') => void

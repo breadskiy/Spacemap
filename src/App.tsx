@@ -6,13 +6,14 @@ import { Navbar } from './components/Navbar'
 import { LandingView } from './components/LandingView'
 import { DashboardView } from './components/DashboardView'
 import { EditorView } from './components/EditorView'
+import { ViewerView } from './components/ViewerView'
 import { CreateSpaceModal } from './components/CreateSpaceModal'
 import { QRCodeModal } from './components/QRCodeModal'
 import { AuthModal } from './components/AuthModal'
 import { ProfileSettingsModal } from './components/ProfileSettingsModal'
 
 export default function App() {
-  const [currentTab, setCurrentTab] = useState<'landing' | 'dashboard' | 'editor'>('landing')
+  const [currentTab, setCurrentTab] = useState<'landing' | 'dashboard' | 'editor' | 'viewer'>('landing')
   const [spaces, setSpaces] = useState<SpaceObject[]>([])
   const [selectedSpace, setSelectedSpace] = useState<SpaceObject | null>(null)
   const [isCreateOpen, setIsCreateOpen] = useState(false)
@@ -33,10 +34,22 @@ export default function App() {
   const loadSpaces = () => {
     const list = getSpaces()
     setSpaces(list)
+    return list
   }
 
   useEffect(() => {
-    loadSpaces()
+    const list = loadSpaces()
+
+    // Проверяем прямую ссылку ?view=ID (для QR-кодов и ссылок посетителей)
+    const params = new URLSearchParams(window.location.search)
+    const viewId = params.get('view')
+    if (viewId) {
+      const found = list.find(s => s.id === viewId)
+      if (found) {
+        setSelectedSpace(found)
+        setCurrentTab('viewer')
+      }
+    }
   }, [])
 
   const handleOpenAuth = (tab: 'login' | 'register') => {
@@ -63,6 +76,11 @@ export default function App() {
     setCurrentTab('editor')
   }
 
+  const handleOpenViewer = (space: SpaceObject) => {
+    setSelectedSpace(space)
+    setCurrentTab('viewer')
+  }
+
   const handleCreated = (newSpace: SpaceObject) => {
     loadSpaces()
     setIsCreateOpen(false)
@@ -77,11 +95,25 @@ export default function App() {
   }
 
   const handleOpenQR = (space: SpaceObject) => {
+    const origin = window.location.origin
     setQrModalData({
       isOpen: true,
       title: space.title,
-      url: space.publicUrl || `https://spacemap.ttk.ru/v/${space.id}`
+      url: `${origin}/?view=${space.id}`
     })
+  }
+
+  // Если открыт режим просмотра (Viewer) — разворачиваем его во весь экран
+  if (currentTab === 'viewer' && selectedSpace) {
+    return (
+      <ViewerView
+        space={selectedSpace}
+        onBack={() => {
+          loadSpaces()
+          setCurrentTab('dashboard')
+        }}
+      />
+    )
   }
 
   // Если открыт редактор — разворачиваем его во весь экран
@@ -136,6 +168,7 @@ export default function App() {
               }
             }}
             onOpenEditor={handleOpenEditor}
+            onOpenViewer={handleOpenViewer}
             onOpenQR={handleOpenQR}
             onRefresh={loadSpaces}
           />
