@@ -1,4 +1,8 @@
 /* Стили редактора планов */
+.hidden {
+  display: none !important;
+}
+
 .tool-btn.active-tool {
   background-color: #dc2626 !important;
   color: #ffffff !important;

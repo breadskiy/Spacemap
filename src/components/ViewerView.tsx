@@ -151,16 +151,26 @@ export function ViewerView({ space, onBack }: ViewerViewProps) {
   // Отрисовка холста (Стильный просмотр: чистый фон, БЕЗ ЗАКРАШЕННЫХ ОБЛАСТЕЙ)
   const draw = () => {
     const canvas = canvasRef.current
-    if (!canvas) return
+    const container = containerRef.current
+    if (!canvas || !container) return
     const ctx = canvas.getContext('2d')
     if (!ctx) return
 
+    const dpr = window.devicePixelRatio || 1
+    const width = container.clientWidth
+    const height = container.clientHeight
+
+    // Полный сброс трансформации и очистка физического буфера
+    ctx.setTransform(1, 0, 0, 1, 0, 0)
     ctx.clearRect(0, 0, canvas.width, canvas.height)
+
+    // Масштабируем контекст под HiDPI / Retina
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
 
     // 1. Стильный чистый фон
     ctx.save()
     ctx.fillStyle = '#f8fafc'
-    ctx.fillRect(0, 0, canvas.width, canvas.height)
+    ctx.fillRect(0, 0, width, height)
 
     // Тонкие едва заметные архитектурные точки (стиль чертежа / карты пространства)
     const dotSpacing = 28 * zoomRef.current
@@ -168,8 +178,8 @@ export function ViewerView({ space, onBack }: ViewerViewProps) {
       ctx.fillStyle = '#e2e8f0'
       const startX = panRef.current.x % dotSpacing
       const startY = panRef.current.y % dotSpacing
-      for (let x = startX; x < canvas.width; x += dotSpacing) {
-        for (let y = startY; y < canvas.height; y += dotSpacing) {
+      for (let x = startX; x < width; x += dotSpacing) {
+        for (let y = startY; y < height; y += dotSpacing) {
           ctx.beginPath()
           ctx.arc(x, y, 1, 0, Math.PI * 2)
           ctx.fill()
@@ -334,20 +344,33 @@ export function ViewerView({ space, onBack }: ViewerViewProps) {
     ctx.restore()
   }
 
-  // Ресайз холста
+  // Ресайз холста с поддержкой HiDPI / Retina
   useEffect(() => {
     const handleResize = () => {
       const canvas = canvasRef.current
       const container = containerRef.current
       if (!canvas || !container) return
-      canvas.width = container.clientWidth
-      canvas.height = container.clientHeight
+      const dpr = window.devicePixelRatio || 1
+      const width = container.clientWidth
+      const height = container.clientHeight
+      canvas.width = Math.round(width * dpr)
+      canvas.height = Math.round(height * dpr)
+      canvas.style.width = `${width}px`
+      canvas.style.height = `${height}px`
       draw()
     }
 
     handleResize()
     window.addEventListener('resize', handleResize)
-    return () => window.removeEventListener('resize', handleResize)
+    const observer = new ResizeObserver(handleResize)
+    if (containerRef.current) {
+      observer.observe(containerRef.current)
+    }
+
+    return () => {
+      window.removeEventListener('resize', handleResize)
+      observer.disconnect()
+    }
   }, [])
 
   useEffect(() => {
