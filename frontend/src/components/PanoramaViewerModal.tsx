@@ -92,8 +92,13 @@ export function PanoramaViewerModal({
     if (!ctx) return
 
     const handleResize = () => {
-      canvas.width = canvas.parentElement?.clientWidth || window.innerWidth
-      canvas.height = canvas.parentElement?.clientHeight || window.innerHeight
+      const dpr = window.devicePixelRatio || 1
+      const w = canvas.parentElement?.clientWidth || window.innerWidth
+      const h = canvas.parentElement?.clientHeight || window.innerHeight
+      canvas.width = Math.round(w * dpr)
+      canvas.height = Math.round(h * dpr)
+      canvas.style.width = `${w}px`
+      canvas.style.height = `${h}px`
     }
     handleResize()
     window.addEventListener('resize', handleResize)

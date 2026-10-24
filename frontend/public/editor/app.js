@@ -57,11 +57,14 @@ const container = document.getElementById('canvas-container');
 
 function resizeCanvas() {
   if (container) {
+    const dpr = window.devicePixelRatio || 1;
     const w = container.clientWidth;
     const h = container.clientHeight;
     if (w > 0 && h > 0) {
-      canvas.width = w;
-      canvas.height = h;
+      canvas.width = Math.round(w * dpr);
+      canvas.height = Math.round(h * dpr);
+      canvas.style.width = w + 'px';
+      canvas.style.height = h + 'px';
     }
   }
   render();
@@ -69,6 +72,9 @@ function resizeCanvas() {
 window.addEventListener('resize', resizeCanvas);
 window.addEventListener('DOMContentLoaded', resizeCanvas);
 window.addEventListener('load', resizeCanvas);
+if (window.ResizeObserver && container) {
+  new ResizeObserver(resizeCanvas).observe(container);
+}
 
 function getCurrentFloor() {
   let floor = state.floors.find(f => f.id === state.activeFloorId);
@@ -151,9 +157,12 @@ function recalculateWallLengths(floor) {
 // ОТРИСОВКА
 // -------------------------------------------------------------
 function render(autoSave = true) {
+  const dpr = window.devicePixelRatio || 1;
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
   ctx.save();
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   ctx.translate(state.pan.x, state.pan.y);
   ctx.scale(state.zoom, state.zoom);
 
@@ -217,10 +226,12 @@ function drawCartesianGrid() {
   const majorStep = state.majorGridStep;
 
   // Границы видимой области в мировых координатах
+  const width = container ? container.clientWidth : canvas.width;
+  const height = container ? container.clientHeight : canvas.height;
   const minX = -state.pan.x / state.zoom;
-  const maxX = (canvas.width - state.pan.x) / state.zoom;
+  const maxX = (width - state.pan.x) / state.zoom;
   const maxY = state.pan.y / state.zoom;
-  const minY = (state.pan.y - canvas.height) / state.zoom;
+  const minY = (state.pan.y - height) / state.zoom;
 
   const startGridX = Math.floor(minX / step) * step;
   const endGridX = Math.ceil(maxX / step) * step;
@@ -2231,8 +2242,10 @@ function renderPoisList(floor) {
 }
 
 function centerOnPoint(wx, wy) {
-  state.pan.x = canvas.width / 2 - wx * state.zoom;
-  state.pan.y = canvas.height / 2 + wy * state.zoom;
+  const width = container ? container.clientWidth : canvas.width;
+  const height = container ? container.clientHeight : canvas.height;
+  state.pan.x = width / 2 - wx * state.zoom;
+  state.pan.y = height / 2 + wy * state.zoom;
 }
 
 function updateFloorUI() {
@@ -3209,9 +3222,14 @@ function drawViewerHotspots(c, vw, vh, hotspots) {
 
 function resizeViewerCanvas() {
   if (!viewer360Canvas) return;
+  const dpr = window.devicePixelRatio || 1;
   const rect = viewer360Canvas.parentElement.getBoundingClientRect();
-  viewer360Canvas.width = rect.width || 800;
-  viewer360Canvas.height = rect.height || 500;
+  const w = rect.width || 800;
+  const h = rect.height || 500;
+  viewer360Canvas.width = Math.round(w * dpr);
+  viewer360Canvas.height = Math.round(h * dpr);
+  viewer360Canvas.style.width = w + 'px';
+  viewer360Canvas.style.height = h + 'px';
 }
 window.addEventListener('resize', () => {
   if (modalPanoViewer && !modalPanoViewer.classList.contains('hidden')) {

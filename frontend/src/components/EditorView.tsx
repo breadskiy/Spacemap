@@ -1,7 +1,8 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import type { SpaceObject } from '../types/space'
 import { publishSpace } from '../utils/storage'
 import { QRCodeModal } from './QRCodeModal'
+import { FloorEditor } from './editor/FloorEditor'
 
 interface EditorViewProps {
   space: SpaceObject
@@ -13,20 +14,10 @@ export function EditorView({ space, onBack, onUpdateSpace }: EditorViewProps) {
   const [isQrOpen, setIsQrOpen] = useState(false)
   const [currentSpace, setCurrentSpace] = useState<SpaceObject>(space)
 
-  // Синхронизация данных при сохранении в iframe редактора
-  useEffect(() => {
-    const handleMsg = (e: MessageEvent) => {
-      if (e.data && (e.data.type === 'SPACEMAP_PLAN_SAVED' || e.data.type === 'PLAN_SAVED')) {
-        const floor = e.data.plan?.floors?.[0]
-        const wallsCount = floor?.walls?.length ?? currentSpace.wallsCount
-        const updated = { ...currentSpace, wallsCount }
-        setCurrentSpace(updated)
-        onUpdateSpace(updated)
-      }
-    }
-    window.addEventListener('message', handleMsg)
-    return () => window.removeEventListener('message', handleMsg)
-  }, [currentSpace, onUpdateSpace])
+  const handleUpdate = (updated: SpaceObject) => {
+    setCurrentSpace(updated)
+    onUpdateSpace(updated)
+  }
 
   const handlePublish = () => {
     const updated = publishSpace(currentSpace.id)
@@ -41,8 +32,8 @@ export function EditorView({ space, onBack, onUpdateSpace }: EditorViewProps) {
 
   return (
     <div className="flex flex-col h-screen w-screen overflow-hidden bg-[#111113]">
-      {/* Верхняя панель управления редактором */}
-      <header className="h-14 shrink-0 bg-white border-b border-[#e9e9ec] px-3 sm:px-4 flex items-center justify-between z-30 shadow-sm">
+      {/* Верхняя панель управления объектом */}
+      <header className="h-14 shrink-0 bg-white border-b border-[#e9e9ec] px-3 sm:px-4 flex items-center justify-between z-30 shadow-sm select-none">
         <div className="flex items-center gap-2 sm:gap-3 overflow-hidden">
           {/* Кнопка назад */}
           <button
@@ -108,16 +99,16 @@ export function EditorView({ space, onBack, onUpdateSpace }: EditorViewProps) {
         </div>
       </header>
 
-      {/* Встраивание редактора тиммейта через iframe */}
+      {/* Нативный React-редактор планов этажей (без iframe) */}
       <main className="flex-1 w-full relative overflow-hidden bg-slate-900">
-        <iframe
-          src={`/editor/index.html?spaceId=${currentSpace.id}`}
-          title="Редактор планов этажей ТТК"
-          className="w-full h-full border-0 block"
+        <FloorEditor
+          space={currentSpace}
+          onBack={onBack}
+          onUpdateSpace={handleUpdate}
         />
       </main>
 
-      {/* Модальное окно публикации с QR-кодом и красивой ссылкой */}
+      {/* Модальное окно публикации с QR-кодом */}
       <QRCodeModal
         isOpen={isQrOpen}
         onClose={() => setIsQrOpen(false)}

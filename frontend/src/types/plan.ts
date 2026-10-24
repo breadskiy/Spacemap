@@ -29,6 +29,14 @@ export interface PlanRoom {
   type?: string
 }
 
+export interface PlanPanoramaHotspot {
+  id: string
+  name: string
+  category: string
+  yaw: number
+  pitch?: number
+}
+
 export interface PlanPanorama {
   id: string
   name: string
@@ -37,6 +45,7 @@ export interface PlanPanorama {
   image?: string
   image_data?: string
   room_id?: string
+  hotspots?: PlanPanoramaHotspot[]
 }
 
 export interface PlanFloor {
