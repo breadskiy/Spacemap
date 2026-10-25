@@ -109,7 +109,7 @@ export function EditorHeader({
       </div>
 
       {/* Панель инструментов: на ПК отображается в шапке, на мобилках вынесена в нижнее плавающее меню */}
-      <div className="hidden md:flex items-center bg-slate-900/90 p-0.5 rounded-xl border border-slate-700 gap-0.5 shrink-0">
+      <div className="hidden sm:flex items-center bg-slate-900/90 p-0.5 rounded-xl border border-slate-700 gap-0.5 shrink-0">
         {toolButtons.map(tb => {
           const isActive = tool === tb.id
           return (
@@ -124,7 +124,7 @@ export function EditorHeader({
               title={tb.hint}
             >
               {tb.icon}
-              <span className="hidden sm:inline">{tb.label}</span>
+              <span className="hidden xl:inline">{tb.label}</span>
             </button>
           )
         })}
@@ -134,7 +134,7 @@ export function EditorHeader({
       <div className="flex items-center gap-1.5 shrink-0">
         <button
           onClick={onOpenHelp}
-          className="hidden md:flex bg-slate-700/80 hover:bg-slate-700 text-slate-300 hover:text-white px-2.5 py-1.5 rounded-lg text-xs font-semibold items-center gap-1.5 transition border border-slate-600 cursor-pointer"
+          className="hidden sm:flex bg-slate-700/80 hover:bg-slate-700 text-slate-300 hover:text-white px-2.5 py-1.5 rounded-lg text-xs font-semibold items-center gap-1.5 transition border border-slate-600 cursor-pointer"
           title="Горячие клавиши и подсказки по инструментам"
         >
           <span className="flex items-center justify-center size-3.5 rounded-full bg-red-600/20 text-red-400 text-[10px] font-black border border-red-500/30">
@@ -160,11 +160,11 @@ export function EditorHeader({
         </button>
 
         <label
-          className="hidden md:flex cursor-pointer bg-slate-700 hover:bg-slate-600 text-slate-200 px-2.5 py-1.5 rounded-lg text-xs font-medium items-center gap-1.5 transition border border-slate-600"
+          className="hidden sm:flex cursor-pointer bg-slate-700 hover:bg-slate-600 text-slate-200 px-2.5 py-1.5 rounded-lg text-xs font-medium items-center gap-1.5 transition border border-slate-600"
           title="Импортировать JSON"
         >
           <FileImportIcon className="size-3.5 text-blue-400" />
-          <span className="hidden md:inline">Импорт</span>
+          <span className="hidden lg:inline">Импорт</span>
           <input
             ref={fileInputRef}
             type="file"
@@ -176,16 +176,16 @@ export function EditorHeader({
 
         <button
           onClick={onExportJson}
-          className="hidden md:flex bg-slate-700 hover:bg-slate-600 text-slate-200 px-2.5 py-1.5 rounded-lg text-xs font-medium items-center gap-1.5 transition border border-slate-600"
+          className="hidden sm:flex bg-slate-700 hover:bg-slate-600 text-slate-200 px-2.5 py-1.5 rounded-lg text-xs font-medium items-center gap-1.5 transition border border-slate-600"
           title="Экспортировать JSON в файл"
         >
           <DownloadIcon className="size-3.5 text-emerald-400" />
-          <span className="hidden md:inline">Экспорт</span>
+          <span className="hidden lg:inline">Экспорт</span>
         </button>
 
         <button
           onClick={onOpenJsonModal}
-          className="hidden md:flex bg-slate-700 hover:bg-slate-600 text-slate-300 hover:text-white px-2.5 py-1.5 rounded-lg text-xs font-medium items-center gap-1.5 transition border border-slate-600 cursor-pointer"
+          className="hidden sm:flex bg-slate-700 hover:bg-slate-600 text-slate-300 hover:text-white px-2.5 py-1.5 rounded-lg text-xs font-medium items-center gap-1.5 transition border border-slate-600 cursor-pointer"
           title="Просмотреть и отредактировать исходный JSON-код плана"
         >
           <CodeIcon className="size-3.5 text-blue-400" />
@@ -193,7 +193,7 @@ export function EditorHeader({
         </button>
 
         {/* Меню "•••" для мобильных экранов */}
-        <div className="md:hidden">
+        <div className="sm:hidden">
           <button
             type="button"
             onClick={() => setIsMobileMenuOpen(prev => !prev)}

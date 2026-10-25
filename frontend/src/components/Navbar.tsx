@@ -56,7 +56,7 @@ export function Navbar({
         </div>
 
         {/* Десктопные вкладки по центру (скрыты на мобилках) */}
-        <nav className="hidden md:flex items-center gap-1 rounded-full border border-[#e9e9ec] bg-[#fafafa] p-1 text-xs font-semibold">
+        <nav className="hidden sm:flex items-center gap-1 rounded-full border border-[#e9e9ec] bg-[#fafafa] p-1 text-xs font-semibold">
           <button
             onClick={() => onNavigate('landing')}
             className={`px-4 py-1.5 rounded-full transition-all ${
@@ -173,7 +173,7 @@ export function Navbar({
           </div>
 
           {/* Мобильная кнопка меню (Гамбургер) */}
-          <div className="flex md:hidden items-center gap-1.5">
+          <div className="flex sm:hidden items-center gap-1.5">
             {user ? (
               <button
                 type="button"
@@ -215,7 +215,7 @@ export function Navbar({
 
       {/* Мобильная выпадающая шторка */}
       {isMobileMenuOpen && (
-        <div className="md:hidden border-t border-[#e9e9ec] bg-white px-5 py-4 space-y-4 shadow-xl animate-in slide-in-from-top-2 duration-200">
+        <div className="sm:hidden border-t border-[#e9e9ec] bg-white px-5 py-4 space-y-4 shadow-xl animate-in slide-in-from-top-2 duration-200">
           <div className="flex flex-col gap-1.5">
             <button
               onClick={() => handleMobileNav('landing')}

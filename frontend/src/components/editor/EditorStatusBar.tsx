@@ -18,7 +18,7 @@ export function EditorStatusBar({
   onResetView
 }: EditorStatusBarProps) {
   return (
-    <footer className="hidden md:flex h-8 shrink-0 bg-slate-900 border-t border-slate-800 px-3 items-center justify-between text-[11px] text-slate-400 select-none z-10">
+    <footer className="hidden sm:flex h-8 shrink-0 bg-slate-900 border-t border-slate-800 px-3 items-center justify-between text-[11px] text-slate-400 select-none z-10">
       {/* Подсказка текущего действия */}
       <div className="flex items-center gap-2 truncate mr-2">
         <span className="size-1.5 rounded-full bg-emerald-400 shrink-0 animate-pulse" />

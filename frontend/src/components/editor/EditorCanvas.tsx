@@ -1604,7 +1604,7 @@ export function EditorCanvas({
       />
 
       {/* Кнопки масштабирования холста (удобно на мобилке и тачпадах) */}
-      <div className="absolute bottom-20 md:bottom-4 right-3 md:right-4 flex flex-col gap-1.5 z-10 pointer-events-auto">
+      <div className="absolute bottom-20 sm:bottom-4 right-3 sm:right-4 flex flex-col gap-1.5 z-10 pointer-events-auto">
         <button
           type="button"
           onClick={() => {

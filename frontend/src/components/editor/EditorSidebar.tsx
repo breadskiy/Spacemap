@@ -135,7 +135,7 @@ export function EditorSidebar({
       {/* Затемнение фона при открытом сайдбаре на мобилке */}
       {!isCollapsed && (
         <div
-          className="md:hidden fixed inset-0 bg-black/60 backdrop-blur-xs z-30 pointer-events-auto"
+          className="sm:hidden fixed inset-0 bg-black/60 backdrop-blur-xs z-30 pointer-events-auto"
           onClick={() => setIsCollapsed(true)}
         />
       )}
@@ -144,7 +144,7 @@ export function EditorSidebar({
       <aside
         className={`bg-slate-800/95 border-r border-slate-700 flex flex-col shadow-2xl text-slate-200 transition-all duration-300 overflow-hidden ${
           isCollapsed ? 'w-0 border-r-0' : 'w-80 max-w-[85vw]'
-        } md:relative fixed inset-y-0 left-0 z-40 md:z-10`}
+        } sm:relative fixed inset-y-0 left-0 z-40 sm:z-10`}
       >
         {/* Сетка вкладок */}
         <div className="grid grid-cols-6 gap-0.5 border-b border-slate-700 bg-slate-900/90 p-1 text-[10px]">
@@ -682,7 +682,7 @@ export function EditorSidebar({
       <button
         onClick={() => setIsCollapsed(!isCollapsed)}
         className={`z-40 size-8 sm:size-6 rounded-full bg-slate-800 border border-slate-600 hover:bg-slate-700 text-slate-300 hover:text-white flex items-center justify-center shadow-lg transition active:scale-95 cursor-pointer ${
-          isCollapsed ? 'fixed left-2 top-14 md:absolute md:left-auto md:-right-3 md:top-3' : 'fixed left-[calc(min(320px,85vw)-16px)] top-14 md:absolute md:left-auto md:-right-3 md:top-3'
+          isCollapsed ? 'fixed left-2 top-14 sm:absolute sm:left-auto sm:-right-3 sm:top-3' : 'fixed left-[calc(min(320px,85vw)-16px)] top-14 sm:absolute sm:left-auto sm:-right-3 sm:top-3'
         }`}
         title={isCollapsed ? 'Развернуть панель' : 'Свернуть панель'}
       >

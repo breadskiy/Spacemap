@@ -93,7 +93,7 @@ export function MobileToolMenu({
   return (
     <>
       {/* Плавающая нижняя плашка на мобильных устройствах */}
-      <div className="md:hidden fixed bottom-4 inset-x-3 z-30 flex flex-col items-center gap-2 pointer-events-none select-none">
+      <div className="sm:hidden fixed bottom-4 inset-x-3 z-30 flex flex-col items-center gap-2 pointer-events-none select-none">
         {/* Краткая подсказка текущего действия */}
         {statusHint && (
           <div className="max-w-xs bg-slate-900/95 backdrop-blur-md border border-slate-700/80 px-3 py-1 rounded-full text-[10px] text-slate-300 shadow-lg truncate flex items-center gap-1.5 pointer-events-auto">
@@ -139,7 +139,7 @@ export function MobileToolMenu({
       {/* Шторка (Bottom Sheet) со списком всех инструментов */}
       {isOpen && (
         <div 
-          className="md:hidden fixed inset-0 z-50 flex flex-col justify-end bg-black/60 backdrop-blur-xs animate-in fade-in duration-200 select-none"
+          className="sm:hidden fixed inset-0 z-50 flex flex-col justify-end bg-black/60 backdrop-blur-xs animate-in fade-in duration-200 select-none"
           onClick={() => setIsOpen(false)}
         >
           <div
