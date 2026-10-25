@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { copyToClipboard } from '../utils/clipboard'
 
 interface QRCodeModalProps {
   isOpen: boolean
@@ -13,10 +14,12 @@ export function QRCodeModal({ isOpen, onClose, title, url }: QRCodeModalProps) {
 
   if (!isOpen) return null
 
-  const handleCopy = () => {
-    navigator.clipboard.writeText(url)
-    setCopied(true)
-    setTimeout(() => setCopied(false), 2000)
+  const handleCopy = async () => {
+    const ok = await copyToClipboard(url)
+    if (ok) {
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    }
   }
 
   return (
@@ -160,7 +163,8 @@ export function QRCodeModal({ isOpen, onClose, title, url }: QRCodeModalProps) {
               type="text"
               readOnly
               value={url}
-              className="flex-1 rounded-xl border border-[#e9e9ec] bg-[#fafafa] px-3.5 py-2.5 text-xs font-mono font-medium text-[#111113] focus:outline-none"
+              onClick={(e) => (e.target as HTMLInputElement).select()}
+              className="flex-1 rounded-xl border border-[#e9e9ec] bg-[#fafafa] px-3.5 py-2.5 text-xs font-mono font-medium text-[#111113] focus:outline-none select-all"
             />
             <button
               onClick={handleCopy}

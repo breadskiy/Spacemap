@@ -115,7 +115,7 @@ export function EditorView({ space, onBack, onUpdateSpace }: EditorViewProps) {
         isOpen={isQrOpen}
         onClose={() => setIsQrOpen(false)}
         title={currentSpace.title}
-        url={currentSpace.publicUrl || `https://spacemap.ttk.ru/v/${currentSpace.id}`}
+        url={(currentSpace.publicUrl && !currentSpace.publicUrl.includes("spacemap.ttk.ru")) ? currentSpace.publicUrl : `${typeof window !== "undefined" ? window.location.origin : ""}/?view=${currentSpace.id}`}
       />
     </div>
   )

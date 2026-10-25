@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
 import type { PlanData } from '../../../types/plan'
 import { CloseIcon, CodeIcon } from '../EditorIcons'
+import { copyToClipboard } from '../../../utils/clipboard'
 
 interface JsonCodeModalProps {
   isOpen: boolean
@@ -52,11 +53,12 @@ export function JsonCodeModal({
   if (!isOpen) return null
 
   const handleCopy = async () => {
-    try {
-      await navigator.clipboard.writeText(jsonText)
+    const ok = await copyToClipboard(jsonText)
+    if (ok) {
       setCopied(true)
+      setError(null)
       setTimeout(() => setCopied(false), 2000)
-    } catch {
+    } else {
       setError('Не удалось скопировать в буфер обмена')
     }
   }
