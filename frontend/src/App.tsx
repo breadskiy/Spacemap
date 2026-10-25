@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react'
 import type { SpaceObject } from './types/space'
 import type { UserProfile } from './types/auth'
-import { getSpaces, saveSpaces, getStoredUser, saveStoredUser } from './utils/storage'
+import { getSpaces, saveSpaces, getStoredUser, saveStoredUser, syncSpacesFromServer } from './utils/storage'
+import { apiGetMe, apiGetPublicSpace } from './utils/api'
 import { Navbar } from './components/Navbar'
 import { LandingView } from './components/LandingView'
 import { DashboardView } from './components/DashboardView'
@@ -32,29 +33,49 @@ export default function App() {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
 
   const loadSpaces = () => {
-    const list = getSpaces()
-    // Привязываем старые тестовые проекты без владельца к текущему вошедшему пользователю
-    if (user && list.some(s => !s.userId)) {
-      const updated = list.map(s => !s.userId ? { ...s, userId: user.id } : s)
-      saveSpaces(updated)
-      setSpaces(updated)
-      return updated
-    }
-    setSpaces(list)
-    return list
+    const localList = getSpaces()
+    setSpaces(localList)
+    syncSpacesFromServer().then(serverList => {
+      setSpaces(serverList)
+    }).catch(() => {})
+    return localList
   }
 
   useEffect(() => {
-    const list = loadSpaces()
+    // 1. Проверяем токен сессии на бэкенде
+    apiGetMe().then(serverUser => {
+      if (serverUser) {
+        setUser(serverUser)
+        saveStoredUser(serverUser)
+      } else {
+        setUser(null)
+        saveStoredUser(null)
+      }
+      loadSpaces()
+    }).catch(() => {
+      setUser(null)
+      saveStoredUser(null)
+      loadSpaces()
+    })
 
-    // Проверяем прямую ссылку ?view=ID (для QR-кодов и ссылок посетителей)
+    // 2. Загружаем пространства из кэша
+    const localList = loadSpaces()
+
+    // 3. Проверяем прямую ссылку ?view=ID (для QR-кодов и ссылок посетителей)
     const params = new URLSearchParams(window.location.search)
     const viewId = params.get('view')
     if (viewId) {
-      const found = list.find(s => s.id === viewId)
+      const found = localList.find(s => s.id === viewId)
       if (found) {
         setSelectedSpace(found)
         setCurrentTab('viewer')
+      } else {
+        apiGetPublicSpace(viewId).then(pub => {
+          if (pub) {
+            setSelectedSpace(pub)
+            setCurrentTab('viewer')
+          }
+        }).catch(() => {})
       }
     }
   }, [])
@@ -66,11 +87,15 @@ export default function App() {
   const handleLoginSuccess = (newUser: UserProfile) => {
     setUser(newUser)
     saveStoredUser(newUser)
+    loadSpaces()
   }
 
   const handleLogout = () => {
     setUser(null)
     saveStoredUser(null)
+    saveSpaces([])
+    setSpaces([])
+    loadSpaces()
   }
 
   const handleUpdateUser = (updated: UserProfile) => {

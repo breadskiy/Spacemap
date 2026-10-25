@@ -109,10 +109,10 @@ export function Navbar({
                   title="Профиль и настройки"
                 >
                   <div className="size-7 rounded-full bg-[#e30613] text-white text-xs font-bold flex items-center justify-center">
-                    {user.name.charAt(0).toUpperCase()}
+                    {(user.name || user.email || 'U').charAt(0).toUpperCase()}
                   </div>
                   <span className="text-xs font-semibold text-[#111113] max-w-[120px] truncate">
-                    {user.name}
+                    {user.name || user.email || 'Пользователь'}
                   </span>
                   <svg className="size-3.5 text-[#6b6b70]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
@@ -124,7 +124,7 @@ export function Navbar({
                   <div className="absolute right-0 mt-2 w-56 rounded-2xl border border-[#e9e9ec] bg-white p-2 shadow-xl z-50 animate-in fade-in zoom-in-95 duration-150">
                     <div className="px-3 py-2 border-b border-[#f0f0f2]">
                       <div className="text-xs font-bold text-[#111113] truncate">
-                        {user.name}
+                        {user.name || user.email || 'Пользователь'}
                       </div>
                       <div className="text-[11px] text-[#6b6b70] truncate">
                         {user.email}
@@ -181,7 +181,7 @@ export function Navbar({
                 className="size-8 rounded-full bg-[#e30613] text-white text-xs font-bold flex items-center justify-center shadow-sm"
                 title="Настройки профиля"
               >
-                {user.name.charAt(0).toUpperCase()}
+                {(user.name || user.email || 'U').charAt(0).toUpperCase()}
               </button>
             ) : (
               <button
@@ -267,10 +267,10 @@ export function Navbar({
               <div className="space-y-2">
                 <div className="flex items-center gap-3 p-2 rounded-xl bg-[#fafafa]">
                   <div className="size-9 rounded-full bg-[#e30613] text-white text-xs font-bold flex items-center justify-center">
-                    {user.name.charAt(0).toUpperCase()}
+                    {(user.name || user.email || 'U').charAt(0).toUpperCase()}
                   </div>
                   <div className="overflow-hidden">
-                    <div className="text-xs font-bold text-[#111113] truncate">{user.name}</div>
+                    <div className="text-xs font-bold text-[#111113] truncate">{user.name || user.email || 'Пользователь'}</div>
                     <div className="text-[11px] text-[#6b6b70] truncate">{user.email}</div>
                   </div>
                 </div>

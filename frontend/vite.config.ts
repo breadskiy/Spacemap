@@ -37,6 +37,24 @@ function parseMultipartNode(buffer: Buffer, boundary: string) {
 
 // https://vite.dev/config/
 export default defineConfig({
+  server: {
+    port: 5173,
+    proxy: {
+      '/api': {
+        target: 'http://127.0.0.1:8000',
+        changeOrigin: true,
+        bypass(req) {
+          if (req.url && req.url.startsWith('/api/stitch')) {
+            return req.url
+          }
+        }
+      },
+      '/static': {
+        target: 'http://127.0.0.1:8000',
+        changeOrigin: true,
+      }
+    }
+  },
   plugins: [
     react(),
     tailwindcss(),

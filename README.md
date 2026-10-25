@@ -1,32 +1,78 @@
-# React + TypeScript + Vite
+# SpaceMap — Интерактивная навигация и 2D CAD редактор планов
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+Веб-платформа для создания поэтажных планов зданий, расстановки зон и точек интереса (POI), загрузки и автоматической сшивки 360° панорам, генерации QR-кодов и интерактивной навигации посетителей прямо в браузере без установки приложений.
 
-Currently, two official plugins are available:
+---
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+## 🚀 Основные возможности
 
-## React Compiler
+- **Векторный 2D CAD редактор:** построение стен, углов, зонирование помещений с автоматическим замыканием контуров и расчётом площади.
+- **Точки интереса (POI):** размещение стендов, выходов, санузлов, инфостоек и интерактивный поиск по объектам.
+- **360° виртуальные туры:** загрузка сферических фото или быстрая сшивка двух кадров по 180° с помощью OpenCV (SIFT + RANSAC).
+- **QR-коды и мгновенный доступ:** каждый план получает уникальную ссылку и QR-код для посетителей.
+- **Полноценная изоляция пользователей:** личный кабинет организатора с авторизацией (JWT), разделением «Мои карты» и публичного каталога мероприятий.
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+---
 
-## Expanding the Oxlint configuration
+## 🛠 Технологический стек
 
-If you are developing a production application, we recommend enabling type-aware lint rules by installing `oxlint-tsgolint` and editing `.oxlintrc.json`:
+- **Frontend:** React 19, TypeScript, Vite, Tailwind CSS, Canvas API, WebGL Viewer
+- **Backend:** Python 3.10+, FastAPI, SQLAlchemy, Pydantic, Pillow, OpenCV, PyJWT
+- **База данных:** PostgreSQL 15+
 
-```json
-{
-  "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["react", "typescript", "oxc"],
-  "options": {
-    "typeAware": true
-  },
-  "rules": {
-    "react/rules-of-hooks": "error",
-    "react/only-export-components": ["warn", { "allowConstantExport": true }]
-  }
-}
+---
+
+## 📂 Структура репозитория
+
+```text
+SpaceMap/
+├── backend/                # REST API сервер (FastAPI)
+│   ├── main.py             # Точки входа API и маршруты
+│   ├── auth.py             # Авторизация и JWT-токены
+│   ├── database.py         # Подключение к PostgreSQL
+│   ├── models.py           # SQLAlchemy ORM-модели
+│   ├── schemas.py          # Pydantic схемы валидации
+│   ├── qr.py               # Генератор QR-кодов
+│   ├── requirements.txt    # Зависимости Python
+│   └── static/             # Хранилище загруженных панорам и превью
+│
+├── frontend/               # Клиентское веб-приложение (React + Vite)
+│   ├── src/                # Исходный код интерфейса и редактора
+│   ├── stitch_panorama.py  # Оптимизированный модуль сшивки 360°
+│   ├── package.json        # Зависимости Node.js
+│   └── vite.config.ts      # Конфигурация Vite и прокси к API
+│
+├── database/               # SQL-скрипты
+│   └── schema.sql          # Инициализация таблиц базы данных
+│
+├── run_project.bat         # Скрипт запуска проекта в один клик (Windows)
+└── README.md
 ```
 
-See the [Oxlint rules documentation](https://oxc.rs/docs/guide/usage/linter/rules) for the full list of rules and categories.
+---
+
+## ⚡ Быстрый старт
+
+### 1. Настройка базы данных PostgreSQL
+Создайте базу данных `indoor_maps` и примените схему:
+```bash
+psql -U postgres -d indoor_maps -f database/schema.sql
+```
+
+### 2. Запуск бэкенда
+```bash
+cd backend
+pip install -r requirements.txt
+python -m uvicorn main:app --reload --port 8000
+```
+API и интерактивная документация Swagger доступны по адресу: `http://localhost:8000/docs`
+
+### 3. Запуск фронтенда
+```bash
+cd frontend
+npm install
+npm run dev
+```
+Веб-интерфейс доступен по адресу: `http://localhost:5173`
+
+> **Под Windows:** для одновременного запуска СУБД, бэкенда и фронтенда достаточно дважды кликнуть на файл `run_project.bat`.

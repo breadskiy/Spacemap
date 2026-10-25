@@ -9,6 +9,7 @@ interface QRCodeModalProps {
 
 export function QRCodeModal({ isOpen, onClose, title, url }: QRCodeModalProps) {
   const [copied, setCopied] = useState(false)
+  const [qrImgError, setQrImgError] = useState(false)
 
   if (!isOpen) return null
 
@@ -59,7 +60,18 @@ export function QRCodeModal({ isOpen, onClose, title, url }: QRCodeModalProps) {
         {/* Блок QR-кода */}
         <div className="my-6 flex flex-col items-center justify-center rounded-2xl border border-[#e9e9ec] bg-[#fafafa] p-6 text-center">
           <div className="relative p-3 bg-white rounded-2xl shadow-sm border border-[#e9e9ec]">
-            {/* Стильный векторный QR-код с метками позиционирования */}
+            {/* Настоящий сканируемый QR-код из бэкенда */}
+            {!qrImgError ? (
+              <img
+                src={`/api/qr?url=${encodeURIComponent(url)}`}
+                alt="QR Code"
+                className="w-44 h-44 object-contain"
+                onError={() => {
+                  // Fallback на эндпоинт по ID или декоративный
+                  setQrImgError(true)
+                }}
+              />
+            ) : (
             <svg
               className="w-44 h-44"
               viewBox="0 0 160 160"
@@ -131,6 +143,7 @@ export function QRCodeModal({ isOpen, onClose, title, url }: QRCodeModalProps) {
               <circle cx="80" cy="80" r="16" fill="white" stroke="#e9e9ec" strokeWidth="2" />
               <circle cx="80" cy="80" r="10" fill="#e30613" />
             </svg>
+            )}
           </div>
           <span className="mt-2.5 text-[11px] font-medium text-[#6b6b70]">
             Наведите камеру смартфона для тестирования

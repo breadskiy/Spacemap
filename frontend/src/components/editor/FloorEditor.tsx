@@ -1,4 +1,5 @@
-import { useState, useCallback, useTransition } from 'react'
+import { useState, useCallback, useEffect, useTransition } from 'react'
+import { apiGetSpacePlan, apiSaveSpacePlan } from '../../utils/api'
 import type { SpaceObject } from '../../types/space'
 import type { PlanData, PlanFloor, PlanCorner, PlanRoom, PlanPoi, PlanPanorama } from '../../types/plan'
 import type { EditorTool, PanZoomState } from '../../types/editor'
@@ -40,6 +41,39 @@ const DEFAULT_PLAN: PlanData = {
   ]
 }
 
+function safeSetPlanStorage(spaceId: string, planData: PlanData): void {
+  try {
+    const key = `spacemap_plan_${spaceId}`
+    // Исключаем гигантские base64 из локального кэша, чтобы никогда не вызывать QuotaExceededError
+    const strippedPlan: PlanData = {
+      ...planData,
+      floors: planData.floors.map(f => ({
+        ...f,
+        panoramas: f.panoramas?.map(p => {
+          const img = p.image_data || p.image || ''
+          if (img.startsWith('data:') && img.length > 50000) {
+            return { ...p, image_data: undefined, imageData: undefined }
+          }
+          return p
+        })
+      }))
+    }
+    localStorage.setItem(key, JSON.stringify(strippedPlan))
+  } catch (err) {
+    console.warn('LocalStorage quota exceeded, clearing obsolete drafts:', err)
+    try {
+      const keysToRemove: string[] = []
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i)
+        if (k && (k.startsWith('spacemap_plan_') || k.startsWith('ttk_'))) {
+          keysToRemove.push(k)
+        }
+      }
+      keysToRemove.forEach(k => localStorage.removeItem(k))
+    } catch (_) {}
+  }
+}
+
 export function FloorEditor({ space, onBack: _onBack, onUpdateSpace }: FloorEditorProps) {
   const [, startTransition] = useTransition()
   // Хранилище плана этажей
@@ -67,6 +101,29 @@ export function FloorEditor({ space, onBack: _onBack, onUpdateSpace }: FloorEdit
     zoom: 1.0
   })
 
+  // Загрузка актуального 2D-плана из базы данных PostgreSQL
+  useEffect(() => {
+    // Очищаем потенциально переполненные ключи LocalStorage с тяжелыми data: URI
+    try {
+      const savedKey = `spacemap_plan_${space.id}`
+      const val = localStorage.getItem(savedKey)
+      if (val && val.length > 500000) {
+        localStorage.removeItem(savedKey)
+      }
+    } catch (_) {}
+
+    apiGetSpacePlan(space.id).then(serverPlan => {
+      if (serverPlan?.floors?.length > 0) {
+        setPlan(serverPlan)
+        if (serverPlan.floors[0]?.id) {
+          setActiveFloorId(serverPlan.floors[0].id)
+        }
+      }
+    }).catch(err => {
+      console.warn('Could not fetch space plan from server', err)
+    })
+  }, [space.id])
+
   // Выбранные сущности
   const [selectedCornerId, setSelectedCornerId] = useState<string | null>(null)
   const [selectedWallId, setSelectedWallId] = useState<string | null>(null)
@@ -78,6 +135,8 @@ export function FloorEditor({ space, onBack: _onBack, onUpdateSpace }: FloorEdit
   const [statusHint, setStatusHint] = useState<string>('Курсор: выберите инструмент или перемещайтесь по плану')
   const [cursorCoords, setCursorCoords] = useState<{ x: number; y: number }>({ x: 0, y: 0 })
   const [isDirty, setIsDirty] = useState<boolean>(false)
+  const [isSaving, setIsSaving] = useState<boolean>(false)
+  const [justSaved, setJustSaved] = useState<boolean>(false)
 
   // Модальные окна
   const [modalCornerCreate, setModalCornerCreate] = useState<{ isOpen: boolean; x: number; y: number }>({
@@ -128,18 +187,22 @@ export function FloorEditor({ space, onBack: _onBack, onUpdateSpace }: FloorEdit
 
   const currentFloor = plan.floors.find(f => f.id === activeFloorId) || plan.floors[0]
 
-  // Автосохранение в LocalStorage
+  // Автосохранение в LocalStorage и PostgreSQL
   const savePlanToStorage = useCallback(
     (currentPlan: PlanData) => {
       try {
-        const jsonStr = JSON.stringify(currentPlan)
-        localStorage.setItem(`spacemap_plan_${space.id}`, jsonStr)
+        safeSetPlanStorage(space.id, currentPlan)
 
         // Обновляем количество стен в объекте
         const floor0 = currentPlan.floors[0]
         const wallsCount = floor0?.walls?.length ?? space.wallsCount
         const updatedSpace = { ...space, wallsCount }
         onUpdateSpace(updatedSpace)
+
+        // Сохраняем чертёж в PostgreSQL базу данных в фоне
+        apiSaveSpacePlan(space.id, currentPlan).catch(err => {
+          console.warn('Backend auto-save notice:', err)
+        })
 
       } catch (err) {
         console.warn('Ошибка сохранения плана:', err)
@@ -149,11 +212,26 @@ export function FloorEditor({ space, onBack: _onBack, onUpdateSpace }: FloorEdit
   )
 
   // Явное сохранение изменений
-  const handleManualSave = useCallback(() => {
-    savePlanToStorage(plan)
-    setIsDirty(false)
-    setStatusHint('Все изменения успешно сохранены!')
-  }, [plan, savePlanToStorage])
+  const handleManualSave = useCallback(async () => {
+    setIsSaving(true)
+    setStatusHint('Сохранение чертежа в базу данных PostgreSQL...')
+    try {
+      safeSetPlanStorage(space.id, plan)
+      const saved = await apiSaveSpacePlan(space.id, plan)
+      if (saved && saved.floors) {
+        setPlan(saved)
+      }
+      setIsDirty(false)
+      setJustSaved(true)
+      setStatusHint('✓ Все изменения (стены, зоны, POI, панорамы) успешно сохранены!')
+      setTimeout(() => setJustSaved(false), 2500)
+    } catch (err: any) {
+      console.error('Ошибка сохранения:', err)
+      setStatusHint(`Ошибка сохранения: ${err.message || 'сервер недоступен'}`)
+    } finally {
+      setIsSaving(false)
+    }
+  }, [plan, space.id])
 
   // Пересчет длин стен для этажа
   const recalculateWalls = (floor: PlanFloor): PlanFloor => {
@@ -171,6 +249,7 @@ export function FloorEditor({ space, onBack: _onBack, onUpdateSpace }: FloorEdit
   // Обновление этажа в плане
   const updateCurrentFloor = useCallback(
     (updater: (floor: PlanFloor) => PlanFloor) => {
+      setIsDirty(true)
       setPlan(prevPlan => {
         const nextFloors = prevPlan.floors.map(f => {
           if (f.id === activeFloorId) {
@@ -646,6 +725,8 @@ export function FloorEditor({ space, onBack: _onBack, onUpdateSpace }: FloorEdit
         onImportJson={handleImportJson}
         onOpenJsonModal={() => setIsJsonModalOpen(true)}
         isDirty={isDirty}
+        isSaving={isSaving}
+        justSaved={justSaved}
         onOpenHelp={() => setIsHelpOpen(true)}
       />
 

@@ -26,9 +26,11 @@ dist-ssr
 # Generated panoramas
 panorama_360_*.jpg
 
-# Backend files (lives in backend branch)
-backend/
+# Backend files
 *.db
 *.sqlite3
 __pycache__/
 *.pyc
+.env
+*.env
+!.env.example

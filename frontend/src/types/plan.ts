@@ -19,6 +19,7 @@ export interface PlanPoi {
   y: number
   description?: string
   room_id?: string
+  roomId?: string
 }
 
 export interface PlanRoom {
@@ -44,7 +45,11 @@ export interface PlanPanorama {
   y: number
   image?: string
   image_data?: string
+  imageData?: string
   room_id?: string
+  roomId?: string
+  view_angle?: number
+  viewAngle?: number
   hotspots?: PlanPanoramaHotspot[]
 }
 

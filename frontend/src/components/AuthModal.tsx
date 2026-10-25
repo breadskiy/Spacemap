@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { apiLogin, apiRegister } from '../utils/api'
 import type { UserProfile } from '../types/auth'
 
 interface AuthModalProps {
@@ -22,6 +23,7 @@ export function AuthModal({
   const [password, setPassword] = useState('')
   const [organization, setOrganization] = useState('')
   const [error, setError] = useState('')
+  const [loading, setLoading] = useState(false)
 
   useEffect(() => {
     if (isOpen) {
@@ -41,7 +43,7 @@ export function AuthModal({
 
   if (!isOpen) return null
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
 
@@ -61,34 +63,27 @@ export function AuthModal({
       return
     }
 
-    // Сохраняем и получаем профиль из реестра пользователей
-    const usersKey = 'spacemap_registered_users_db'
-    let usersList: UserProfile[] = []
+    setLoading(true)
     try {
-      const raw = localStorage.getItem(usersKey)
-      if (raw) usersList = JSON.parse(raw)
-    } catch (_) {}
-
-    let user = usersList.find(u => u.email.toLowerCase() === cleanEmail.toLowerCase())
-    if (!user) {
-      const stableId = 'usr_' + Math.abs(cleanEmail.split('').reduce((acc, c) => ((acc << 5) - acc) + c.charCodeAt(0), 0))
-      user = {
-        id: stableId,
-        name: tab === 'register' ? (name.trim() || cleanEmail.split('@')[0]) : (cleanEmail.split('@')[0] || 'Организатор'),
-        email: cleanEmail,
-        organization: organization.trim() || 'ТрансТелеКом / ТТК',
-        role: 'Организатор пространства'
+      let user: UserProfile
+      if (tab === 'login') {
+        user = await apiLogin({ email: cleanEmail, password })
+      } else {
+        user = await apiRegister({
+          email: cleanEmail,
+          password,
+          name: name.trim(),
+          company: organization.trim(),
+          role: 'organizer'
+        })
       }
-      usersList.push(user)
-      localStorage.setItem(usersKey, JSON.stringify(usersList))
-    } else if (tab === 'register' && name.trim()) {
-      user.name = name.trim()
-      if (organization.trim()) user.organization = organization.trim()
-      localStorage.setItem(usersKey, JSON.stringify(usersList))
+      onSuccess(user)
+      onClose()
+    } catch (err: any) {
+      setError(err?.message || 'Ошибка авторизации. Проверьте данные.')
+    } finally {
+      setLoading(false)
     }
-
-    onSuccess(user)
-    onClose()
   }
 
   return (
@@ -218,9 +213,10 @@ export function AuthModal({
 
           <button
             type="submit"
+            disabled={loading}
             className="w-full mt-2 h-10 rounded-full bg-[#e30613] text-xs font-bold text-white hover:bg-[#c40511] transition shadow-md shadow-[#e30613]/20"
           >
-            {tab === 'login' ? 'Войти в личный кабинет' : 'Зарегистрироваться'}
+            {loading ? 'Загрузка...' : (tab === 'login' ? 'Войти в личный кабинет' : 'Зарегистрироваться')}
           </button>
         </form>
       </div>

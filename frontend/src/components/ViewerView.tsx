@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import type { SpaceObject } from '../types/space'
-import type { PlanData, PlanFloor, PlanPoi, PlanCorner, PlanPanorama } from '../types/plan'
+import type { PlanData, PlanPoi, PlanCorner, PlanPanorama } from '../types/plan'
 import { PanoramaViewerModal } from './PanoramaViewerModal'
+import { apiGetPublicSpace, apiGetSpacePlan } from '../utils/api'
 import { findNavRoute, tracePartialPath, getPointAlongPath, type PathResult } from '../utils/pathfinding'
 
 interface ViewerViewProps {
@@ -86,7 +87,7 @@ export function ViewerView({ space, onBack }: ViewerViewProps) {
   panRef.current = pan
   zoomRef.current = zoom
 
-  // Загрузка плана из localStorage
+  // Загрузка плана из базы данных PostgreSQL с кэшем localStorage
   useEffect(() => {
     try {
       const raw = localStorage.getItem('spacemap_plan_' + space.id)
@@ -95,26 +96,48 @@ export function ViewerView({ space, onBack }: ViewerViewProps) {
         if (parsed.floors && parsed.floors.length > 0) {
           setPlan(parsed)
           setActiveFloorId(parsed.floors[0].id)
-          return
         }
       }
-      } catch (e) {
-      console.warn('Could not read plan data', e)
+    } catch (e) {
+      console.warn('Could not read cached plan data', e)
     }
 
-    // Если чертежа еще нет, инициализируем чистый этаж (без фейковых заглушек)
-    const emptyFloor: PlanFloor = {
-      id: 'floor-1',
-      name: '1 этаж',
-      level: 1,
-      corners: [],
-      walls: [],
-      rooms: [],
-      pois: [],
-      panoramas: []
+    // Загружаем с бэкенда
+    const loadFromServer = async () => {
+      try {
+        const pub = await apiGetPublicSpace(space.id)
+        if (pub?.plan?.floors && pub.plan.floors.length > 0) {
+          setPlan(pub.plan)
+          setActiveFloorId(pub.plan.floors[0].id)
+          return
+        }
+      } catch (_) {
+        try {
+          const direct = await apiGetSpacePlan(space.id)
+          if (direct?.floors && direct.floors.length > 0) {
+            setPlan(direct)
+            setActiveFloorId(direct.floors[0].id)
+            return
+          }
+        } catch (_) {}
+      }
+
+      setPlan(prev => prev || {
+        floors: [{
+          id: 'floor-1',
+          name: '1 этаж',
+          level: 1,
+          corners: [],
+          walls: [],
+          rooms: [],
+          pois: [],
+          panoramas: []
+        }]
+      })
+      setActiveFloorId('floor-1')
     }
-    setPlan({ floors: [emptyFloor] })
-    setActiveFloorId('floor-1')
+
+    loadFromServer()
   }, [space.id])
 
   const currentFloor = plan?.floors.find(f => f.id === activeFloorId) || plan?.floors[0]
@@ -1267,10 +1290,14 @@ export function ViewerView({ space, onBack }: ViewerViewProps) {
 
             {/* Связанная 360° панорама стенда / комнаты (если есть) */}
             {(() => {
-              const linkedPano = currentFloor?.panoramas?.find(p => 
-                (selectedPoi.room_id && p.room_id === selectedPoi.room_id) || 
-                Math.hypot(p.x - selectedPoi.x, p.y - selectedPoi.y) <= 120
-              )
+              const linkedPano = currentFloor?.panoramas?.find(p => {
+                const poiRoom = selectedPoi.room_id || selectedPoi.roomId
+                const panoRoom = p.room_id || p.roomId
+                return (
+                  Boolean(poiRoom && panoRoom && poiRoom === panoRoom) || 
+                  Math.hypot(p.x - selectedPoi.x, p.y - selectedPoi.y) <= 140
+                )
+              })
               if (!linkedPano) return null
               return (
                 <button

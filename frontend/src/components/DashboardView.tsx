@@ -34,10 +34,17 @@ export function DashboardView({
     }
   }
 
-  // Свои пространства текущего пользователя (строгая изоляция по userId)
-  const mySpaces = user ? spaces.filter(s => s.userId === user.id) : []
+  // Свои пространства текущего пользователя (строгая изоляция по userId / user_id)
+  const isMySpace = (s: SpaceObject): boolean => {
+    if (!user || !user.id) return false
+    const owner = s.userId || (s as any).user_id || (s as any).owner_id
+    if (!owner) return false
+    return String(owner).trim().toLowerCase() === String(user.id).trim().toLowerCase()
+  }
+
+  const mySpaces = user ? spaces.filter(isMySpace) : []
   // Все мероприятия: опубликованные + собственные объекты организатора
-  const allSpaces = spaces.filter(s => s.status === 'published' || (user && s.userId === user.id))
+  const allSpaces = spaces.filter(s => s.status === 'published' || isMySpace(s))
 
   // Текущий список для выбранной вкладки
   const currentList = !user 
@@ -70,8 +77,8 @@ export function DashboardView({
           </p>
         </div>
 
-        {/* Кнопка создания: доступна только авторизованным организаторам */}
-        {user && (
+        {/* Кнопка создания: доступна только во вкладке «Мои карты», если уже есть проекты (если проектов нет — показывается по центру) */}
+        {user && activeTab === 'my' && mySpaces.length > 0 && (
           <button
             onClick={onOpenCreate}
             className="inline-flex h-10 sm:h-9 items-center justify-center gap-1.5 rounded-full bg-[#e30613] px-5 sm:px-4 text-xs font-bold sm:font-semibold text-white hover:bg-[#c40511] transition-colors shadow-sm shrink-0"

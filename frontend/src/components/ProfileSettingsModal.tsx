@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import type { UserProfile } from '../types/auth'
+import { apiUpdateProfile } from '../utils/api'
 
 interface ProfileSettingsModalProps {
   isOpen: boolean
@@ -23,7 +24,7 @@ export function ProfileSettingsModal({
 
   useEffect(() => {
     if (user && isOpen) {
-      setName(user.name)
+      setName(user.name || user.email || '')
       setEmail(user.email)
       setOrganization(user.organization || '')
       setSavedSuccess(false)
@@ -40,12 +41,20 @@ export function ProfileSettingsModal({
 
   if (!isOpen || !user) return null
 
-  const handleSave = (e: React.FormEvent) => {
+  const handleSave = async (e: React.FormEvent) => {
     e.preventDefault()
     const updated: UserProfile = {
       ...user,
       name: name.trim() || user.name,
       organization: organization.trim() || 'ТрансТелеКом'
+    }
+    try {
+      await apiUpdateProfile({
+        name: updated.name,
+        company: updated.organization
+      })
+    } catch (err) {
+      console.warn('Could not sync profile to backend', err)
     }
     onUpdate(updated)
     setSavedSuccess(true)
@@ -72,7 +81,7 @@ export function ProfileSettingsModal({
 
         <div className="flex items-center gap-3 mb-6">
           <div className="size-12 rounded-2xl bg-[#e30613] text-white font-extrabold text-lg flex items-center justify-center shadow-md shadow-[#e30613]/25">
-            {user.name.charAt(0).toUpperCase()}
+            {(user.name || user.email || 'U').charAt(0).toUpperCase()}
           </div>
           <div>
             <h3 className="text-base font-extrabold text-[#111113]">

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react'
 import type { PlanPanorama, PlanFloor } from '../../../types/plan'
+import { apiUploadPanorama } from '../../../utils/api'
 import { CloseIcon, PanoIcon } from '../EditorIcons'
 
 interface PanoramaEditModalProps {
@@ -38,6 +39,7 @@ export function PanoramaEditModal({
   const [frame2, setFrame2] = useState<File | null>(null)
   const [isStitching, setIsStitching] = useState<boolean>(false)
   const [stitchError, setStitchError] = useState<string | null>(null)
+  const [isUploading, setIsUploading] = useState<boolean>(false)
 
   // Хотспоты (POI внутри панорамы)
 
@@ -63,6 +65,7 @@ export function PanoramaEditModal({
     setFrame2(null)
     setIsStitching(false)
     setStitchError(null)
+    setIsUploading(false)
   }, [pano, targetRoomId, floor, isOpen])
 
   if (!isOpen) return null
@@ -70,19 +73,74 @@ export function PanoramaEditModal({
   const targetX = pano ? pano.x : defaultX
   const targetY = pano ? pano.y : defaultY
 
-  const handleProcessFile = (file: File) => {
+  const compressImage = (file: File): Promise<string> => {
+    return new Promise((resolve) => {
+      const reader = new FileReader()
+      reader.onload = (e) => {
+        const img = new Image()
+        img.onload = () => {
+          const canvas = document.createElement('canvas')
+          const maxW = 1600
+          const maxH = 800
+          let w = img.width
+          let h = img.height
+          if (w > maxW) {
+            h = Math.round((h * maxW) / w)
+            w = maxW
+          }
+          if (h > maxH) {
+            w = Math.round((w * maxH) / h)
+            h = maxH
+          }
+          canvas.width = w
+          canvas.height = h
+          const ctx = canvas.getContext('2d')
+          if (ctx) {
+            ctx.drawImage(img, 0, 0, w, h)
+            resolve(canvas.toDataURL('image/jpeg', 0.65))
+          } else {
+            resolve(e.target?.result as string)
+          }
+        }
+        img.onerror = () => resolve(e.target?.result as string)
+        img.src = e.target?.result as string
+      }
+      reader.onerror = () => resolve('')
+      reader.readAsDataURL(file)
+    })
+  }
+
+  const handleProcessFile = async (file: File) => {
+    setIsUploading(true)
+    setStitchError(null)
+
+    // 1. Быстрое локальное превью
     const reader = new FileReader()
     reader.onload = e => {
       const result = e.target?.result as string
       if (result) {
         setImageData(result)
-        setImageMeta({
-          name: file.name,
-          size: file.size
-        })
+        setImageMeta({ name: file.name, size: file.size })
       }
     }
     reader.readAsDataURL(file)
+
+    // 2. Отправка на бэкенд FastAPI (/api/panoramas/upload)
+    try {
+      const res = await apiUploadPanorama(file)
+      if (res && res.imageUrl) {
+        setImageData(res.imageUrl)
+        setImageMeta({ name: file.name, size: file.size })
+      }
+    } catch (err: any) {
+      console.warn('Серверная загрузка панорамы не удалась, оптимизируем размер:', err)
+      try {
+        const compressed = await compressImage(file)
+        if (compressed) setImageData(compressed)
+      } catch (_) {}
+    } finally {
+      setIsUploading(false)
+    }
   }
 
   const handleExecuteStitch = async () => {
@@ -247,13 +305,18 @@ export function PanoramaEditModal({
                 <div className="rounded-2xl border border-slate-700 bg-slate-950/70 p-3 flex items-center gap-3">
                   <div className="w-28 h-16 rounded-xl overflow-hidden bg-black shrink-0 relative border border-slate-800">
                     <img src={imageData} alt="Превью" className="w-full h-full object-cover" />
+                    {isUploading && (
+                      <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
+                        <div className="size-4 border-2 border-indigo-400 border-t-transparent rounded-full animate-spin" />
+                      </div>
+                    )}
                   </div>
                   <div className="flex-1 min-w-0">
                     <span className="font-bold text-white text-xs block truncate">
                       {imageMeta?.name || 'Панорамное фото загружено'}
                     </span>
                     <span className="text-[10px] text-emerald-400 font-semibold block">
-                      Готово к просмотру в 360°
+                      {isUploading ? 'Оптимизация и сохранение на сервере...' : 'Готово к просмотру в 360°'}
                     </span>
                     <div className="flex items-center gap-2 mt-2">
                       {onOpenViewer && (
@@ -349,10 +412,10 @@ export function PanoramaEditModal({
                 {isStitching ? (
                   <>
                     <div className="size-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                    <span>Сшивка панорамы в 8K (SIFT + RANSAC)...</span>
+                    <span>Сшивка панорамы...</span>
                   </>
                 ) : (
-                  <span>Выполнить сшивку 360° панорамы</span>
+                  <span>Сшивка панорамы</span>
                 )}
               </button>
             </div>
@@ -412,6 +475,27 @@ export function PanoramaEditModal({
             </div>
 
             <div className="flex items-center gap-2">
+              {onOpenViewer && (imageData || pano?.image || pano?.image_data) && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    onOpenViewer({
+                      id: pano ? pano.id : `pano_preview`,
+                      name: name.trim() || 'Панорама 360°',
+                      x: targetX,
+                      y: targetY,
+                      image_data: imageData || undefined,
+                      image: imageData || pano?.image || undefined,
+                      room_id: roomId || undefined,
+                    })
+                  }}
+                  className="px-3.5 py-2 rounded-xl text-xs font-semibold bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-300 hover:text-white border border-indigo-500/40 transition flex items-center gap-1.5"
+                  title="Открыть виртуальный тур в 360°"
+                >
+                  <PanoIcon className="size-3.5 text-indigo-400" />
+                  <span>360° Просмотр</span>
+                </button>
+              )}
               <button
                 type="button"
                 onClick={onClose}

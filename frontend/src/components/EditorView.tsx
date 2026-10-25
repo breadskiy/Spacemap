@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import type { SpaceObject } from '../types/space'
-import { publishSpace } from '../utils/storage'
+import { publishSpaceAsync } from '../utils/storage'
 import { QRCodeModal } from './QRCodeModal'
 import { FloorEditor } from './editor/FloorEditor'
 
@@ -19,8 +19,8 @@ export function EditorView({ space, onBack, onUpdateSpace }: EditorViewProps) {
     onUpdateSpace(updated)
   }
 
-  const handlePublish = () => {
-    const updated = publishSpace(currentSpace.id)
+  const handlePublish = async () => {
+    const updated = await publishSpaceAsync(currentSpace.id)
     if (updated) {
       setCurrentSpace(updated)
       onUpdateSpace(updated)
@@ -85,14 +85,16 @@ export function EditorView({ space, onBack, onUpdateSpace }: EditorViewProps) {
             </button>
           )}
 
-          {/* Главная кнопка "Опубликовать" */}
+          {/* Главная кнопка "Опубликовать" / "Обновить публикацию" */}
           <button
             onClick={handlePublish}
             className="inline-flex items-center gap-1.5 px-3 sm:px-4 py-1.5 rounded-xl bg-[#e30613] hover:bg-[#c40511] text-xs font-bold text-white shadow-sm transition-all"
           >
-            <svg className="size-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-            </svg>
+            {isPublished && (
+              <svg className="size-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+              </svg>
+            )}
             <span className="hidden sm:inline">{isPublished ? 'Обновить публикацию' : 'Опубликовать'}</span>
             <span className="sm:hidden">{isPublished ? 'Обновить' : 'Опубликовать'}</span>
           </button>

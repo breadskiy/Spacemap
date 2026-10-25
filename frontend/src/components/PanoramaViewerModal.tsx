@@ -103,13 +103,31 @@ export function PanoramaViewerModal({
     handleResize()
     window.addEventListener('resize', handleResize)
 
-    // Загрузка панорамной текстуры (поддержка image_data и image)
-    const imgSrc = panorama.image_data || panorama.image || generatePlaceholderTexture(panorama.name || roomName)
+    // Загрузка панорамной текстуры (поддержка image_data и image с надёжным фолбэком)
+    const rawSrc = panorama.image_data || panorama.image
+    const imgSrc = rawSrc && rawSrc.trim() ? rawSrc.trim() : generatePlaceholderTexture(panorama.name || roomName)
     const img = new Image()
-    img.crossOrigin = 'anonymous'
+    if (!imgSrc.startsWith('data:')) {
+      img.crossOrigin = 'anonymous'
+    }
+
+    const loadFallback = () => {
+      const fallbackSrc = generatePlaceholderTexture(panorama.name || roomName)
+      const fallbackImg = new Image()
+      fallbackImg.onload = () => {
+        stateRef.current.textureImg = fallbackImg
+        startRender()
+      }
+      fallbackImg.src = fallbackSrc
+    }
+
     img.onload = () => {
       stateRef.current.textureImg = img
       startRender()
+    }
+    img.onerror = () => {
+      console.warn('Could not load panorama image, falling back to 360 procedural texture')
+      loadFallback()
     }
     img.src = imgSrc
 

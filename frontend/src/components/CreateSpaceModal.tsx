@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import type { SpaceCategory, SpaceObject } from '../types/space'
-import { createSpace } from '../utils/storage'
+import { createSpaceAsync } from '../utils/storage'
 
 interface CreateSpaceModalProps {
   isOpen: boolean
@@ -9,7 +9,7 @@ interface CreateSpaceModalProps {
   userId?: string
 }
 
-export function CreateSpaceModal({ isOpen, onClose, onCreated, userId }: CreateSpaceModalProps) {
+export function CreateSpaceModal({ isOpen, onClose, onCreated }: CreateSpaceModalProps) {
   const [title, setTitle] = useState('')
   const [category, setCategory] = useState<SpaceCategory>('conference')
   const [address, setAddress] = useState('')
@@ -18,27 +18,30 @@ export function CreateSpaceModal({ isOpen, onClose, onCreated, userId }: CreateS
 
   if (!isOpen) return null
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!title.trim()) {
       setError('Пожалуйста, укажите название мероприятия или здания')
       return
     }
 
-    const created = createSpace({
-      title,
-      category,
-      address,
-      description,
-      userId
-    })
+    try {
+      const created = await createSpaceAsync({
+        title,
+        category,
+        address,
+        description
+      })
 
-    // Сброс и возврат
-    setTitle('')
-    setAddress('')
-    setDescription('')
-    setError('')
-    onCreated(created)
+      // Сброс и возврат
+      setTitle('')
+      setAddress('')
+      setDescription('')
+      setError('')
+      onCreated(created)
+    } catch (err: any) {
+      setError(err?.message || 'Не удалось создать пространство')
+    }
   }
 
   return (

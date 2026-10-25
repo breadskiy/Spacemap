@@ -24,6 +24,8 @@ interface EditorHeaderProps {
   onImportJson: (file: File) => void
   onOpenJsonModal: () => void
   isDirty?: boolean
+  isSaving?: boolean
+  justSaved?: boolean
 }
 
 export function EditorHeader({
@@ -34,7 +36,9 @@ export function EditorHeader({
   onExportJson,
   onImportJson,
   onOpenJsonModal,
-  isDirty = false
+  isDirty: _isDirty = false,
+  isSaving = false,
+  justSaved = false
 }: EditorHeaderProps) {
   const fileInputRef = useRef<HTMLInputElement | null>(null)
 
@@ -140,19 +144,18 @@ export function EditorHeader({
 
         <button
           onClick={onSave}
-          className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition shadow cursor-pointer ${
-            isDirty
-              ? 'bg-[#e30613] hover:bg-[#c40511] text-white shadow-lg shadow-red-600/40 ring-2 ring-red-400/50'
-              : 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-600/30'
-          }`}
-          title="Сохранить план помещения в проект"
+          disabled={isSaving}
+          className="bg-slate-700 hover:bg-slate-600 text-slate-200 hover:text-white px-2.5 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5 transition border border-slate-600 cursor-pointer disabled:opacity-50"
+          title="Сохранить"
         >
-          {isDirty ? (
-            <FloppyIcon className="size-3.5 animate-pulse text-white" />
+          {isSaving ? (
+            <div className="size-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+          ) : justSaved ? (
+            <CheckIcon className="size-3.5 text-emerald-400" />
           ) : (
-            <CheckIcon className="size-3.5 text-white" />
+            <FloppyIcon className="size-3.5 text-slate-300" />
           )}
-          <span className="hidden xs:inline">{isDirty ? 'Сохранить*' : 'Сохранено'}</span>
+          <span>{isSaving ? 'Сохранение...' : justSaved ? 'Сохранено' : 'Сохранить'}</span>
         </button>
 
         <label
@@ -181,10 +184,11 @@ export function EditorHeader({
 
         <button
           onClick={onOpenJsonModal}
-          className="bg-slate-700 hover:bg-slate-600 text-slate-300 hover:text-white px-2 py-1.5 rounded-lg text-xs font-medium flex items-center transition border border-slate-600"
-          title="Просмотреть/изменить исходный JSON код"
+          className="bg-slate-700 hover:bg-slate-600 text-slate-300 hover:text-white px-2.5 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5 transition border border-slate-600 cursor-pointer"
+          title="Просмотреть и отредактировать исходный JSON-код плана"
         >
-          <CodeIcon className="size-3.5" />
+          <CodeIcon className="size-3.5 text-blue-400" />
+          <span className="hidden lg:inline">JSON</span>
         </button>
       </div>
     </header>

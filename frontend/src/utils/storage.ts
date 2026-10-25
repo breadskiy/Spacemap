@@ -1,13 +1,26 @@
 import type { SpaceObject, SpaceCategory } from '../types/space'
 import type { UserProfile } from '../types/auth'
+import {
+  apiGetSpaces,
+  apiCreateSpace,
+  apiPublishSpace,
+  apiDeleteSpace,
+  apiLogout
+} from './api'
 
-const STORAGE_KEY = 'spacemap_venues_v2'
+const STORAGE_KEY = 'spacemap_venues_v3'
 const USER_STORAGE_KEY = 'spacemap_user_auth'
 
 export function getStoredUser(): UserProfile | null {
   try {
     const raw = localStorage.getItem(USER_STORAGE_KEY)
-    return raw ? JSON.parse(raw) : null
+    if (!raw) return null
+    const parsed = JSON.parse(raw)
+    if (!parsed || typeof parsed !== 'object') return null
+    if (!parsed.name || typeof parsed.name !== 'string') {
+      parsed.name = (parsed.email ? String(parsed.email).split('@')[0] : '') || 'Организатор'
+    }
+    return parsed
   } catch (e) {
     console.error('Error reading user from localStorage', e)
     return null
@@ -20,6 +33,7 @@ export function saveStoredUser(user: UserProfile | null): void {
       localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(user))
     } else {
       localStorage.removeItem(USER_STORAGE_KEY)
+      apiLogout()
     }
   } catch (e) {
     console.error('Error saving user to localStorage', e)
@@ -34,7 +48,6 @@ export const CATEGORY_LABELS: Record<SpaceCategory, string> = {
   other: 'Пространство'
 }
 
-// Сухой чистый каркас без лишних предустановленных мероприятий
 const INITIAL_SPACES: SpaceObject[] = []
 
 export function getSpaces(): SpaceObject[] {
@@ -62,6 +75,23 @@ export function saveSpaces(spaces: SpaceObject[]): void {
 export function getSpaceById(id: string): SpaceObject | undefined {
   const spaces = getSpaces()
   return spaces.find(s => s.id === id)
+}
+
+/**
+ * Асинхронно получает актуальный список пространств из PostgreSQL базы данных
+ * и обновляет локальный кэш.
+ */
+export async function syncSpacesFromServer(): Promise<SpaceObject[]> {
+  try {
+    const serverSpaces = await apiGetSpaces()
+    if (Array.isArray(serverSpaces)) {
+      saveSpaces(serverSpaces)
+      return serverSpaces
+    }
+  } catch (e) {
+    console.warn('Backend unavailable, using cached spaces', e)
+  }
+  return getSpaces()
 }
 
 export function createSpace(data: {
@@ -92,9 +122,41 @@ export function createSpace(data: {
     })
   }
 
+  // Фоновая отправка в PostgreSQL
+  apiCreateSpace({
+    title: data.title,
+    category: data.category,
+    address: data.address,
+    description: data.description
+  }).then(serverSpace => {
+    const current = getSpaces()
+    const idx = current.findIndex(s => s.id === newSpace.id)
+    if (idx !== -1) {
+      current[idx] = serverSpace
+    } else {
+      current.unshift(serverSpace)
+    }
+    saveSpaces(current)
+  }).catch(err => {
+    console.warn('Could not sync created space to backend', err)
+  })
+
   const updated = [newSpace, ...spaces]
   saveSpaces(updated)
   return newSpace
+}
+
+export async function createSpaceAsync(data: {
+  title: string
+  category: SpaceCategory
+  address: string
+  description: string
+}): Promise<SpaceObject> {
+  const serverSpace = await apiCreateSpace(data)
+  const spaces = getSpaces().filter(s => s.id !== serverSpace.id)
+  const updated = [serverSpace, ...spaces]
+  saveSpaces(updated)
+  return serverSpace
 }
 
 export function publishSpace(id: string): SpaceObject | undefined {
@@ -103,15 +165,11 @@ export function publishSpace(id: string): SpaceObject | undefined {
   if (index === -1) return undefined
 
   const space = spaces[index]
-  const cleanSlug = space.title
-    .toLowerCase()
-    .replace(/[^a-zа-я0-9]+/g, '-')
-    .replace(/^-|-$/g, '') || 'venue'
 
   const updatedSpace: SpaceObject = {
     ...space,
     status: 'published',
-    publicUrl: `https://spacemap.ttk.ru/v/${cleanSlug}`,
+    publicUrl: `${window.location.origin}/?view=${space.id}`,
     updatedAt: new Date().toLocaleString('ru-RU', {
       day: '2-digit',
       month: '2-digit',
@@ -121,13 +179,57 @@ export function publishSpace(id: string): SpaceObject | undefined {
     })
   }
 
+  // Фоновая публикация на сервере
+  apiPublishSpace(id).then(res => {
+    const current = getSpaces()
+    const idx = current.findIndex(s => s.id === id)
+    if (idx !== -1) {
+      current[idx] = res
+      saveSpaces(current)
+    }
+  }).catch(err => {
+    console.warn('Could not publish space to server', err)
+  })
+
   spaces[index] = updatedSpace
   saveSpaces(spaces)
   return updatedSpace
+}
+
+export async function publishSpaceAsync(id: string): Promise<SpaceObject | undefined> {
+  try {
+    const res = await apiPublishSpace(id)
+    const current = getSpaces()
+    const idx = current.findIndex(s => s.id === id)
+    if (idx !== -1) {
+      current[idx] = res
+    } else {
+      current.unshift(res)
+    }
+    saveSpaces(current)
+    return res
+  } catch (e) {
+    console.warn('Failed to publish on backend, using fallback', e)
+    return publishSpace(id)
+  }
 }
 
 export function deleteSpace(id: string): void {
   const spaces = getSpaces()
   const filtered = spaces.filter(s => s.id !== id)
   saveSpaces(filtered)
+
+  // Удаление на сервере
+  apiDeleteSpace(id).catch(err => {
+    console.warn('Could not delete space on server', err)
+  })
+}
+
+export async function deleteSpaceAsync(id: string): Promise<void> {
+  try {
+    await apiDeleteSpace(id)
+  } catch (e) {
+    console.warn('Could not delete space on server', e)
+  }
+  deleteSpace(id)
 }
