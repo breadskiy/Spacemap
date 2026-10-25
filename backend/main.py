@@ -2,12 +2,18 @@ import base64
 import os
 import re
 import shutil
+import sys
 import tempfile
 import uuid
 from contextlib import asynccontextmanager
 from datetime import datetime
 from pathlib import Path
 from typing import List, Optional
+
+# Обеспечиваем корректный поиск локальных модулей и в Docker, и локально
+BASE_DIR = Path(__file__).resolve().parent
+if str(BASE_DIR) not in sys.path:
+    sys.path.insert(0, str(BASE_DIR))
 
 from fastapi import Depends, FastAPI, File, HTTPException, Query, Request, Response, UploadFile, status
 from fastapi.concurrency import run_in_threadpool
@@ -28,7 +34,6 @@ try:
         get_current_user_optional,
     )
     from qr import build_viewer_url, render_qr_svg, validate_http_url
-    from stitch_panorama import stitch_to_8k
 except ImportError:
     from backend.database import Base, engine, get_db
     from backend import models
@@ -41,9 +46,14 @@ except ImportError:
         get_current_user_optional,
     )
     from backend.qr import build_viewer_url, render_qr_svg, validate_http_url
+
+# Модуль сшивки панорам изолирован, чтобы бэкенд гарантированно стартовал
+try:
+    from stitch_panorama import stitch_to_8k
+except Exception as e:
     try:
         from backend.stitch_panorama import stitch_to_8k
-    except ImportError:
+    except Exception:
         stitch_to_8k = None
 
 # ==========================================
