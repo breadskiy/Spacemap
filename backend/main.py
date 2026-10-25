@@ -46,9 +46,6 @@ except ImportError:
     except ImportError:
         stitch_to_8k = None
 
-# Создаём таблицы в базе данных при загрузке модуля
-Base.metadata.create_all(bind=engine)
-
 # ==========================================
 # Paths & Directories
 # ==========================================
@@ -251,8 +248,19 @@ def seed_mock_data():
 # ==========================================
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Создаём таблицы при старте (чистая база данных, без моковых пользователей)
-    Base.metadata.create_all(bind=engine)
+    # Ожидаем готовности базы данных PostgreSQL при старте контейнера (до 15 попыток)
+    import time
+    for attempt in range(1, 16):
+        try:
+            Base.metadata.create_all(bind=engine)
+            print(f"[SpaceMap] База данных PostgreSQL готова (попытка {attempt})")
+            break
+        except Exception as e:
+            if attempt == 15:
+                print(f"[SpaceMap] Критическая ошибка подключения к БД: {e}")
+                raise
+            print(f"[SpaceMap] Ожидание готовности PostgreSQL (попытка {attempt}/15, {e})...")
+            time.sleep(2)
     yield
 
 
