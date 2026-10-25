@@ -64,9 +64,11 @@ def ensure_postgres_running(host: str = "127.0.0.1", port: int = 5432) -> bool:
 if "127.0.0.1" in raw_db_url or "localhost" in raw_db_url:
     ensure_postgres_running()
 
-# Нормализуем протокол для SQLAlchemy (postgres:// -> postgresql://)
+# Нормализуем протокол для SQLAlchemy с явным указанием драйвера psycopg2
 if raw_db_url.startswith("postgres://"):
-    raw_db_url = raw_db_url.replace("postgres://", "postgresql://", 1)
+    raw_db_url = raw_db_url.replace("postgres://", "postgresql+psycopg2://", 1)
+elif raw_db_url.startswith("postgresql://") and not raw_db_url.startswith("postgresql+"):
+    raw_db_url = raw_db_url.replace("postgresql://", "postgresql+psycopg2://", 1)
 
 if raw_db_url:
     SQLALCHEMY_DATABASE_URL = raw_db_url
