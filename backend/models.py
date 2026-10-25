@@ -3,10 +3,14 @@ from datetime import datetime
 from sqlalchemy import Boolean, Column, DateTime, Float, ForeignKey, Integer, String, Text, JSON, Uuid
 from sqlalchemy.orm import relationship
 
-try:
-    from database import Base
-except ImportError:
-    from backend.database import Base
+import sys
+from pathlib import Path
+
+_dir = Path(__file__).resolve().parent
+if str(_dir) not in sys.path:
+    sys.path.insert(0, str(_dir))
+
+from database import Base
 
 
 def generate_uuid() -> str:

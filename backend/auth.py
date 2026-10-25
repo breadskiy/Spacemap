@@ -9,12 +9,15 @@ from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
 
-try:
-    from database import get_db
-    import models
-except ImportError:
-    from backend.database import get_db
-    from backend import models
+import sys
+from pathlib import Path
+
+_dir = Path(__file__).resolve().parent
+if str(_dir) not in sys.path:
+    sys.path.insert(0, str(_dir))
+
+from database import get_db
+import models
 
 # Секретный ключ для подписи JWT
 JWT_SECRET = os.getenv("JWT_SECRET", "spacemap_secret_jwt_key_ttk_2026")

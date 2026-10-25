@@ -22,30 +22,17 @@ from fastapi.staticfiles import StaticFiles
 from PIL import Image, ImageDraw
 from sqlalchemy.orm import Session
 
-try:
-    from database import Base, engine, get_db
-    import models
-    import schemas
-    from auth import (
-        hash_password,
-        verify_password,
-        create_access_token,
-        get_current_user,
-        get_current_user_optional,
-    )
-    from qr import build_viewer_url, render_qr_svg, validate_http_url
-except ImportError:
-    from backend.database import Base, engine, get_db
-    from backend import models
-    from backend import schemas
-    from backend.auth import (
-        hash_password,
-        verify_password,
-        create_access_token,
-        get_current_user,
-        get_current_user_optional,
-    )
-    from backend.qr import build_viewer_url, render_qr_svg, validate_http_url
+from database import Base, engine, get_db
+import models
+import schemas
+from auth import (
+    hash_password,
+    verify_password,
+    create_access_token,
+    get_current_user,
+    get_current_user_optional,
+)
+from qr import build_viewer_url, render_qr_svg, validate_http_url
 
 # Модуль сшивки панорам изолирован, чтобы бэкенд гарантированно стартовал
 try:
