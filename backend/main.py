@@ -35,13 +35,16 @@ from auth import (
 from qr import build_viewer_url, render_qr_svg, validate_http_url
 
 # Модуль сшивки панорам изолирован, чтобы бэкенд гарантированно стартовал
+_stitch_import_error = None
 try:
     from stitch_panorama import stitch_to_8k
 except Exception as e:
     try:
         from backend.stitch_panorama import stitch_to_8k
-    except Exception:
+    except Exception as e2:
         stitch_to_8k = None
+        _stitch_import_error = f"{e} (fallback: {e2})"
+        print(f"[WARN] stitch_panorama import failed: {_stitch_import_error}", file=sys.stderr)
 
 # ==========================================
 # Paths & Directories
@@ -933,7 +936,7 @@ async def stitch_panorama_endpoint(
     if stitch_to_8k is None:
         raise HTTPException(
             status_code=500,
-            detail="Модуль сшивки панорам (stitch_panorama) недоступен на сервере"
+            detail=f"Модуль сшивки панорам (stitch_panorama) недоступен на сервере: {_stitch_import_error}"
         )
 
     tmp_dir = tempfile.mkdtemp(prefix="stitch_")
@@ -972,7 +975,11 @@ async def stitch_panorama_endpoint(
             "size": len(out_bytes),
             "width": 8192,
         }
+    except HTTPException:
+        raise
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
     finally:
         shutil.rmtree(tmp_dir, ignore_errors=True)

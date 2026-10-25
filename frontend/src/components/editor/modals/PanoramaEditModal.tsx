@@ -166,14 +166,24 @@ export function PanoramaEditModal({
         let errText = 'Ошибка сервера при сшивке панорамы'
         try {
           const errJson = await response.json()
-          if (errJson && errJson.message) errText = errJson.message
-        } catch (_) {}
+          if (errJson) {
+            errText = errJson.detail || errJson.message || errJson.error || errText
+          }
+        } catch (_) {
+          if (response.status === 502) {
+            errText = 'Сервер перегружен или перезагружается (502 Bad Gateway). Проверьте backend.'
+          } else if (response.status === 413) {
+            errText = 'Файлы превышают лимит размера загрузки (413 Payload Too Large).'
+          } else if (response.status === 504) {
+            errText = 'Время ожидания ответа сервера истекло (504 Gateway Timeout).'
+          }
+        }
         throw new Error(errText)
       }
 
       const result = await response.json()
-      if (result.status === 'ok' && result.image) {
-        setImageData(result.image)
+      if (result.status === 'ok' && (result.image || result.url)) {
+        setImageData(result.image || result.url)
         setImageMeta({
           name: 'Сшитая 360° панорама (8K)',
           size: result.size,
@@ -182,7 +192,7 @@ export function PanoramaEditModal({
         })
         setMode('single')
       } else {
-        throw new Error(result.message || 'Скрипт сшивки вернул пустой результат')
+        throw new Error(result.detail || result.message || 'Скрипт сшивки вернул пустой результат')
       }
     } catch (err: any) {
       console.error('Ошибка сшивки панорамы:', err)
