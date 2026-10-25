@@ -835,49 +835,26 @@ export function ViewerView({ space, onBack }: ViewerViewProps) {
       })
     }
 
-    // Touch жесты для телефонов
+    // Touch жесты для телефонов и планшетов
+    let isTouchTap = false
+    let touchStartX = 0
+    let touchStartY = 0
+
     const handleTouchStart = (e: TouchEvent) => {
+      e.preventDefault()
       if (e.touches.length === 1) {
         const t = e.touches[0]
         const rect = canvas.getBoundingClientRect()
         const sx = t.clientX - rect.left
         const sy = t.clientY - rect.top
-        const world = screenToWorld(sx, sy)
-
-        // Построение маршрута тачем
-        if (routingStepRef.current === 'pickA') {
-          const clickedPoi = currentFloor?.pois.find(p => Math.hypot(p.x - world.x, p.y - world.y) <= 24 / zoomRef.current)
-          const nameA = clickedPoi ? clickedPoi.name : 'Точка А (Старт)'
-          setPointA({ x: clickedPoi ? clickedPoi.x : Math.round(world.x), y: clickedPoi ? clickedPoi.y : Math.round(world.y), name: nameA })
-          setNavRoute(null)
-          setIsNavigating(false)
-          setRouteError(null)
-          setRoutingStep('pickB')
-          return
-        }
-
-        if (routingStepRef.current === 'pickB') {
-          const clickedPoi = currentFloor?.pois.find(p => Math.hypot(p.x - world.x, p.y - world.y) <= 24 / zoomRef.current)
-          const nameB = clickedPoi ? clickedPoi.name : 'Точка Б (Финиш)'
-          setPointB({ x: clickedPoi ? clickedPoi.x : Math.round(world.x), y: clickedPoi ? clickedPoi.y : Math.round(world.y), name: nameB })
-          setNavRoute(null)
-          setIsNavigating(false)
-          setRouteError(null)
-          setRoutingStep('idle')
-          return
-        }
-
-        if (currentFloor) {
-          const clickedPoi = currentFloor.pois.find(p => Math.hypot(p.x - world.x, p.y - world.y) <= 24 / zoomRef.current)
-          if (clickedPoi) {
-            setSelectedPoi(clickedPoi)
-            return
-          }
-        }
+        touchStartX = sx
+        touchStartY = sy
+        isTouchTap = true
 
         isPanning = true
         panStart = { x: sx - panRef.current.x, y: sy - panRef.current.y }
       } else if (e.touches.length === 2) {
+        isTouchTap = false
         isPanning = true
         const t1 = e.touches[0]
         const t2 = e.touches[1]
@@ -889,15 +866,21 @@ export function ViewerView({ space, onBack }: ViewerViewProps) {
     }
 
     const handleTouchMove = (e: TouchEvent) => {
+      e.preventDefault()
       if (e.touches.length === 1 && isPanning) {
         const t = e.touches[0]
         const rect = canvas.getBoundingClientRect()
+        const sx = t.clientX - rect.left
+        const sy = t.clientY - rect.top
+        if (Math.hypot(sx - touchStartX, sy - touchStartY) > 8) {
+          isTouchTap = false
+        }
         setPan({
-          x: t.clientX - rect.left - panStart.x,
-          y: t.clientY - rect.top - panStart.y
+          x: sx - panStart.x,
+          y: sy - panStart.y
         })
       } else if (e.touches.length === 2) {
-        e.preventDefault()
+        isTouchTap = false
         const t1 = e.touches[0]
         const t2 = e.touches[1]
         const rect = canvas.getBoundingClientRect()
@@ -919,9 +902,65 @@ export function ViewerView({ space, onBack }: ViewerViewProps) {
       }
     }
 
-    const handleTouchEnd = () => {
+    const handleTouchEnd = (e: TouchEvent) => {
+      if (isTouchTap && e.changedTouches.length === 1) {
+        const t = e.changedTouches[0]
+        const rect = canvas.getBoundingClientRect()
+        const sx = t.clientX - rect.left
+        const sy = t.clientY - rect.top
+        const world = screenToWorld(sx, sy)
+
+        // Построение маршрута тачем
+        if (routingStepRef.current === 'pickA') {
+          const clickedPoi = currentFloor?.pois.find(p => Math.hypot(p.x - world.x, p.y - world.y) <= 26 / zoomRef.current)
+          const nameA = clickedPoi ? clickedPoi.name : 'Точка А (Старт)'
+          setPointA({ x: clickedPoi ? clickedPoi.x : Math.round(world.x), y: clickedPoi ? clickedPoi.y : Math.round(world.y), name: nameA })
+          setNavRoute(null)
+          setIsNavigating(false)
+          setRouteError(null)
+          setRoutingStep('pickB')
+          isPanning = false
+          touchStartDist = 0
+          return
+        }
+
+        if (routingStepRef.current === 'pickB') {
+          const clickedPoi = currentFloor?.pois.find(p => Math.hypot(p.x - world.x, p.y - world.y) <= 26 / zoomRef.current)
+          const nameB = clickedPoi ? clickedPoi.name : 'Точка Б (Финиш)'
+          setPointB({ x: clickedPoi ? clickedPoi.x : Math.round(world.x), y: clickedPoi ? clickedPoi.y : Math.round(world.y), name: nameB })
+          setNavRoute(null)
+          setIsNavigating(false)
+          setRouteError(null)
+          setRoutingStep('idle')
+          isPanning = false
+          touchStartDist = 0
+          return
+        }
+
+        if (currentFloor) {
+          // Клик по панораме 360° на мобилке
+          const clickedPano = currentFloor.panoramas?.find(p => Math.hypot(p.x - world.x, p.y - world.y) <= 26 / zoomRef.current)
+          if (clickedPano) {
+            setSelectedPanorama(clickedPano)
+            isPanning = false
+            touchStartDist = 0
+            return
+          }
+
+          // Клик по POI на мобилке
+          const clickedPoi = currentFloor.pois.find(p => Math.hypot(p.x - world.x, p.y - world.y) <= 26 / zoomRef.current)
+          if (clickedPoi) {
+            setSelectedPoi(clickedPoi)
+            isPanning = false
+            touchStartDist = 0
+            return
+          }
+        }
+      }
+
       isPanning = false
       touchStartDist = 0
+      isTouchTap = false
     }
 
     canvas.addEventListener('mousedown', handleMouseDown)
@@ -993,24 +1032,24 @@ export function ViewerView({ space, onBack }: ViewerViewProps) {
   }
 
   return (
-    <div className="relative flex flex-col h-screen w-screen overflow-hidden bg-[#f8fafc] text-[#111113] select-none">
+    <div className="relative flex flex-col h-screen h-[100dvh] w-screen overflow-hidden bg-[#f8fafc] text-[#111113] select-none touch-none">
       {/* 1. Стильная верхняя шапка просмотра */}
-      <header className="h-16 shrink-0 bg-white/95 backdrop-blur-md border-b border-[#e9e9ec] px-4 sm:px-6 flex items-center justify-between z-30 shadow-xs">
-        <div className="flex items-center gap-3">
+      <header className="h-14 sm:h-16 shrink-0 bg-white/95 backdrop-blur-md border-b border-[#e9e9ec] px-3 sm:px-6 flex items-center justify-between z-30 shadow-xs">
+        <div className="flex items-center gap-2 sm:gap-3 min-w-0">
           <button
             onClick={onBack}
-            className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full border border-[#e9e9ec] bg-white text-xs font-semibold text-[#111113] hover:border-[#e30613] hover:text-[#e30613] transition shadow-2xs"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-[#e9e9ec] bg-white text-xs font-semibold text-[#111113] hover:border-[#e30613] hover:text-[#e30613] transition shadow-2xs shrink-0 active:scale-95"
           >
             <svg className="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
             </svg>
-            <span>Назад</span>
+            <span className="hidden xs:inline">Назад</span>
           </button>
 
-          <div className="h-4 w-px bg-[#e9e9ec]" />
+          <div className="h-4 w-px bg-[#e9e9ec] shrink-0" />
 
-          <div>
-            <h1 className="text-sm sm:text-base font-extrabold text-[#111113] tracking-tight truncate max-w-[170px] sm:max-w-md">
+          <div className="min-w-0 truncate">
+            <h1 className="text-xs sm:text-base font-extrabold text-[#111113] tracking-tight truncate max-w-[140px] xs:max-w-[200px] sm:max-w-md">
               {space.title}
             </h1>
             <p className="text-[11px] text-[#6b6b70] hidden sm:block">
@@ -1019,12 +1058,10 @@ export function ViewerView({ space, onBack }: ViewerViewProps) {
           </div>
         </div>
 
-        {/* Переключатель этажей и панорамы */}
-        <div className="flex items-center gap-2">
-          
-
+        {/* Переключатель этажей */}
+        <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
           {plan && plan.floors.length > 1 && (
-            <div className="flex items-center gap-1 bg-[#f4f4f6] p-1 rounded-full border border-[#e9e9ec]">
+            <div className="flex items-center gap-1 bg-[#f4f4f6] p-0.5 sm:p-1 rounded-full border border-[#e9e9ec] overflow-x-auto max-w-[140px] sm:max-w-none">
               {plan.floors.map(floor => (
                 <button
                   key={floor.id}
@@ -1032,7 +1069,7 @@ export function ViewerView({ space, onBack }: ViewerViewProps) {
                     setActiveFloorId(floor.id)
                     handleResetRoute()
                   }}
-                  className={`px-3 py-1 text-xs font-bold rounded-full transition ${
+                  className={`px-2.5 sm:px-3 py-1 text-xs font-bold rounded-full transition shrink-0 ${
                     activeFloorId === floor.id
                       ? 'bg-white text-[#111113] shadow-xs'
                       : 'text-[#6b6b70] hover:text-[#111113]'
@@ -1047,7 +1084,7 @@ export function ViewerView({ space, onBack }: ViewerViewProps) {
       </header>
 
       {/* 2. ПАНЕЛЬ МАРШРУТА: ПОЛЬЗОВАТЕЛЬ САМ СТАВИТ ТОЧКУ А И ТОЧКУ Б */}
-      <div className="absolute top-20 left-4 right-4 sm:left-1/2 sm:-translate-x-1/2 sm:max-w-md z-20 pointer-events-auto">
+      <div className="absolute top-16 sm:top-20 left-3 right-3 sm:left-1/2 sm:-translate-x-1/2 sm:max-w-md z-20 pointer-events-auto">
         {/* А. Если режим выбора точки А */}
         {routingStep === 'pickA' && (
           <div className="bg-white/95 backdrop-blur-md rounded-2xl border border-emerald-300 p-3.5 shadow-xl flex items-center justify-between gap-3 animate-in fade-in zoom-in-95">
@@ -1224,31 +1261,31 @@ export function ViewerView({ space, onBack }: ViewerViewProps) {
         
 
         {/* Кнопки зума справа снизу */}
-        <div className="absolute bottom-6 right-6 flex flex-col gap-2 z-20">
+        <div className="absolute bottom-24 sm:bottom-6 right-3 sm:right-6 flex flex-col gap-2 z-20">
           <button
             onClick={() => setZoom(prev => Math.min(prev * 1.25, 4.0))}
-            className="size-10 rounded-full bg-white border border-[#e9e9ec] shadow-md flex items-center justify-center text-[#111113] hover:border-[#e30613] hover:text-[#e30613] transition cursor-pointer"
+            className="size-11 sm:size-10 rounded-full bg-white border border-[#e9e9ec] shadow-lg flex items-center justify-center text-[#111113] hover:border-[#e30613] hover:text-[#e30613] transition active:scale-90 cursor-pointer"
             title="Приблизить"
           >
-            <svg className="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <svg className="size-5 sm:size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.2} d="M12 4v16m8-8H4" />
             </svg>
           </button>
           <button
             onClick={() => setZoom(prev => Math.max(prev / 1.25, minZoomRef.current))}
-            className="size-10 rounded-full bg-white border border-[#e9e9ec] shadow-md flex items-center justify-center text-[#111113] hover:border-[#e30613] hover:text-[#e30613] transition cursor-pointer"
+            className="size-11 sm:size-10 rounded-full bg-white border border-[#e9e9ec] shadow-lg flex items-center justify-center text-[#111113] hover:border-[#e30613] hover:text-[#e30613] transition active:scale-90 cursor-pointer"
             title="Отдалить (с ограничением)"
           >
-            <svg className="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <svg className="size-5 sm:size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.2} d="M20 12H4" />
             </svg>
           </button>
           <button
             onClick={fitToPlan}
-            className="size-10 rounded-full bg-white border border-[#e9e9ec] shadow-md flex items-center justify-center text-[#111113] hover:border-[#e30613] hover:text-[#e30613] transition cursor-pointer"
+            className="size-11 sm:size-10 rounded-full bg-white border border-[#e9e9ec] shadow-lg flex items-center justify-center text-[#111113] hover:border-[#e30613] hover:text-[#e30613] transition active:scale-90 cursor-pointer"
             title="Показать весь план"
           >
-            <svg className="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <svg className="size-5 sm:size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
             </svg>
           </button>
@@ -1257,8 +1294,8 @@ export function ViewerView({ space, onBack }: ViewerViewProps) {
 
       {/* 4. Всплывающая карточка выбранной метки (POI) */}
       {selectedPoi && (
-        <div className="absolute bottom-6 left-4 right-4 sm:left-6 sm:right-auto sm:w-96 z-30 animate-in slide-in-from-bottom-4 duration-200">
-          <div className="bg-white rounded-3xl border border-[#e9e9ec] p-5 shadow-2xl relative">
+        <div className="absolute bottom-3 left-3 right-3 sm:bottom-6 sm:left-6 sm:right-auto sm:w-96 z-30 animate-in slide-in-from-bottom-4 duration-200">
+          <div className="bg-white rounded-3xl border border-[#e9e9ec] p-4 sm:p-5 shadow-2xl relative">
             <button
               onClick={() => setSelectedPoi(null)}
               className="absolute top-4 right-4 size-7 rounded-full bg-[#fafafa] border border-[#e9e9ec] flex items-center justify-center text-[#6b6b70] hover:text-[#111113]"
@@ -1277,13 +1314,13 @@ export function ViewerView({ space, onBack }: ViewerViewProps) {
               </span>
             </div>
 
-            <h3 className="text-lg font-bold text-[#111113] mb-3">
+            <h3 className="text-base sm:text-lg font-bold text-[#111113] mb-2 sm:mb-3">
               {selectedPoi.name}
             </h3>
 
             {/* Краткая информация / описание (если есть) */}
             {selectedPoi.description && (
-              <div className="mb-3 p-3 rounded-2xl bg-[#fafafa] border border-[#e9e9ec] text-xs text-[#6b6b70] leading-relaxed">
+              <div className="mb-3 p-2.5 sm:p-3 rounded-2xl bg-[#fafafa] border border-[#e9e9ec] text-xs text-[#6b6b70] leading-relaxed">
                 {selectedPoi.description}
               </div>
             )}
@@ -1303,7 +1340,7 @@ export function ViewerView({ space, onBack }: ViewerViewProps) {
                 <button
                   type="button"
                   onClick={() => setSelectedPanorama(linkedPano)}
-                  className="mb-3 w-full p-2.5 rounded-2xl bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 text-indigo-700 text-xs font-semibold flex items-center justify-between transition cursor-pointer group"
+                  className="mb-3 w-full p-2.5 rounded-2xl bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 text-indigo-700 text-xs font-semibold flex items-center justify-between transition cursor-pointer group active:scale-98"
                 >
                   <span className="flex items-center gap-2 truncate">
                     <span className="text-sm">📸</span>
@@ -1326,7 +1363,7 @@ export function ViewerView({ space, onBack }: ViewerViewProps) {
                   setIsNavigating(false)
                   setRouteError(null)
                 }}
-                className="h-10 rounded-full border border-emerald-300 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 font-bold text-xs flex items-center justify-center gap-1.5 transition"
+                className="h-11 sm:h-10 rounded-full border border-emerald-300 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 font-bold text-xs flex items-center justify-center gap-1.5 transition active:scale-95"
               >
                 <span>Отсюда (А)</span>
               </button>
@@ -1339,7 +1376,7 @@ export function ViewerView({ space, onBack }: ViewerViewProps) {
                   setIsNavigating(false)
                   setRouteError(null)
                 }}
-                className="h-10 rounded-full bg-[#e30613] text-white hover:bg-[#c40511] font-bold text-xs flex items-center justify-center gap-1.5 transition shadow-sm shadow-[#e30613]/25"
+                className="h-11 sm:h-10 rounded-full bg-[#e30613] text-white hover:bg-[#c40511] font-bold text-xs flex items-center justify-center gap-1.5 transition shadow-sm shadow-[#e30613]/25 active:scale-95"
               >
                 <span>Сюда (Б)</span>
               </button>

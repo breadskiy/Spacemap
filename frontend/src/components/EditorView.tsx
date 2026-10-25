@@ -31,7 +31,7 @@ export function EditorView({ space, onBack, onUpdateSpace }: EditorViewProps) {
   const isPublished = currentSpace.status === 'published'
 
   return (
-    <div className="flex flex-col h-screen w-screen overflow-hidden bg-[#111113]">
+    <div className="flex flex-col h-screen h-[100dvh] w-screen overflow-hidden bg-[#111113]">
       {/* Верхняя панель управления объектом */}
       <header className="h-14 shrink-0 bg-white border-b border-[#e9e9ec] px-3 sm:px-4 flex items-center justify-between z-30 shadow-sm select-none">
         <div className="flex items-center gap-2 sm:gap-3 overflow-hidden">

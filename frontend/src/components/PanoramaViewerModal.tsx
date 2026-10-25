@@ -227,16 +227,26 @@ export function PanoramaViewerModal({
     }
 
     // Touch
+    let touchStartDist = 0
+
     const onTouchStart = (e: TouchEvent) => {
+      e.preventDefault()
       if (e.touches.length === 1) {
         stateRef.current.isDragging = true
         stateRef.current.lastX = e.touches[0].clientX
         stateRef.current.lastY = e.touches[0].clientY
         setIsAutoRotate(false)
+      } else if (e.touches.length === 2) {
+        stateRef.current.isDragging = false
+        touchStartDist = Math.hypot(
+          e.touches[1].clientX - e.touches[0].clientX,
+          e.touches[1].clientY - e.touches[0].clientY
+        )
       }
     }
 
     const onTouchMove = (e: TouchEvent) => {
+      e.preventDefault()
       const state = stateRef.current
       if (state.isDragging && e.touches.length === 1) {
         const dx = e.touches[0].clientX - state.lastX
@@ -246,19 +256,30 @@ export function PanoramaViewerModal({
         state.pitch = Math.max(-42, Math.min(42, state.pitch + dy * sensitivity))
         state.lastX = e.touches[0].clientX
         state.lastY = e.touches[0].clientY
+      } else if (e.touches.length === 2) {
+        const dist = Math.hypot(
+          e.touches[1].clientX - e.touches[0].clientX,
+          e.touches[1].clientY - e.touches[0].clientY
+        )
+        if (touchStartDist > 0) {
+          const diff = dist - touchStartDist
+          setFov(prev => Math.min(100, Math.max(45, prev - diff * 0.15)))
+        }
+        touchStartDist = dist
       }
     }
 
     const onTouchEnd = () => {
       stateRef.current.isDragging = false
+      touchStartDist = 0
     }
 
     canvas.addEventListener('mousedown', onMouseDown)
     window.addEventListener('mousemove', onMouseMove)
     window.addEventListener('mouseup', onMouseUp)
     canvas.addEventListener('wheel', onWheel, { passive: false })
-    canvas.addEventListener('touchstart', onTouchStart, { passive: true })
-    canvas.addEventListener('touchmove', onTouchMove, { passive: true })
+    canvas.addEventListener('touchstart', onTouchStart, { passive: false })
+    canvas.addEventListener('touchmove', onTouchMove, { passive: false })
     canvas.addEventListener('touchend', onTouchEnd)
 
     return () => {
@@ -275,8 +296,8 @@ export function PanoramaViewerModal({
   }, [panorama, roomName])
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-6 bg-black/90 backdrop-blur-md animate-in fade-in duration-200">
-      <div className="relative w-full max-w-5xl h-[88vh] rounded-3xl bg-slate-900 border border-slate-700 shadow-2xl flex flex-col overflow-hidden">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-0 sm:p-6 bg-black/95 backdrop-blur-md animate-in fade-in duration-200">
+      <div className="relative w-full max-w-5xl h-screen h-[100dvh] sm:h-[88vh] rounded-none sm:rounded-3xl bg-slate-900 border-0 sm:border border-slate-700 shadow-2xl flex flex-col overflow-hidden">
         
         {/* Шапка 360° вьювера */}
         <header className="px-5 py-3.5 border-b border-slate-800 bg-slate-900/90 flex items-center justify-between z-10 shrink-0">

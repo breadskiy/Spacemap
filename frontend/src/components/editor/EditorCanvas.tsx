@@ -1177,12 +1177,231 @@ export function EditorCanvas({
       }
     }
 
+    // Touch жесты (сенсорные экраны телефонов и планшетов)
+    let touchStartDist = 0
+    let isTouchTap = false
+    let touchStartX = 0
+    let touchStartY = 0
+    let touchPanStart = { x: 0, y: 0 }
+
+    const onTouchStart = (e: TouchEvent) => {
+      e.preventDefault()
+      const rect = canvas.getBoundingClientRect()
+      if (e.touches.length === 1) {
+        const t = e.touches[0]
+        const sx = t.clientX - rect.left
+        const sy = t.clientY - rect.top
+        touchStartX = sx
+        touchStartY = sy
+        isTouchTap = true
+        touchPanStart = { x: sx - panZoomRef.current.pan.x, y: sy - panZoomRef.current.pan.y }
+
+        const world = screenToWorld(sx, sy)
+        const clickedCorner = findCornerAt(world.x, world.y)
+        const clickedPoi = findPoiAt(world.x, world.y)
+        const clickedPano = findPanoAt(world.x, world.y)
+
+        if (toolRef.current === 'select') {
+          if (clickedCorner) {
+            interStateRef.current.isDraggingCorner = true
+            interStateRef.current.draggedId = clickedCorner.id
+            interStateRef.current.isPanning = false
+            onSelectCorner(clickedCorner.id)
+            return
+          }
+          if (clickedPoi) {
+            interStateRef.current.isDraggingPoi = true
+            interStateRef.current.draggedId = clickedPoi.id
+            interStateRef.current.isPanning = false
+            onSelectPoi(clickedPoi.id)
+            return
+          }
+          if (clickedPano) {
+            interStateRef.current.isDraggingPano = true
+            interStateRef.current.draggedId = clickedPano.id
+            interStateRef.current.isPanning = false
+            onSelectPano(clickedPano.id)
+            return
+          }
+          interStateRef.current.isPanning = true
+          interStateRef.current.panStart = touchPanStart
+        } else {
+          interStateRef.current.isPanning = false
+        }
+      } else if (e.touches.length === 2) {
+        isTouchTap = false
+        interStateRef.current.isPanning = true
+        interStateRef.current.isDraggingCorner = false
+        interStateRef.current.isDraggingPoi = false
+        interStateRef.current.isDraggingPano = false
+        interStateRef.current.draggedId = null
+
+        const t1 = e.touches[0]
+        const t2 = e.touches[1]
+        touchStartDist = Math.hypot(t2.clientX - t1.clientX, t2.clientY - t1.clientY)
+        const midX = (t1.clientX + t2.clientX) / 2 - rect.left
+        const midY = (t1.clientY + t2.clientY) / 2 - rect.top
+        touchPanStart = { x: midX - panZoomRef.current.pan.x, y: midY - panZoomRef.current.pan.y }
+      }
+    }
+
+    const onTouchMove = (e: TouchEvent) => {
+      e.preventDefault()
+      const rect = canvas.getBoundingClientRect()
+      if (e.touches.length === 1) {
+        const t = e.touches[0]
+        const sx = t.clientX - rect.left
+        const sy = t.clientY - rect.top
+        if (Math.hypot(sx - touchStartX, sy - touchStartY) > 8) {
+          isTouchTap = false
+        }
+
+        const inter = interStateRef.current
+        const world = screenToWorld(sx, sy)
+
+        if (inter.isDraggingCorner && inter.draggedId) {
+          onCornerMove(inter.draggedId, snap(world.x), snap(world.y))
+          return
+        }
+        if (inter.isDraggingPoi && inter.draggedId) {
+          onPoiMove(inter.draggedId, snap(world.x), snap(world.y))
+          return
+        }
+        if (inter.isDraggingPano && inter.draggedId) {
+          onPanoMove(inter.draggedId, snap(world.x), snap(world.y))
+          return
+        }
+
+        if (inter.isPanning) {
+          onPanZoomChange({
+            zoom: panZoomRef.current.zoom,
+            pan: {
+              x: sx - touchPanStart.x,
+              y: sy - touchPanStart.y
+            }
+          })
+        }
+      } else if (e.touches.length === 2) {
+        isTouchTap = false
+        const t1 = e.touches[0]
+        const t2 = e.touches[1]
+        const midX = (t1.clientX + t2.clientX) / 2 - rect.left
+        const midY = (t1.clientY + t2.clientY) / 2 - rect.top
+
+        const dist = Math.hypot(t2.clientX - t1.clientX, t2.clientY - t1.clientY)
+        if (touchStartDist > 0) {
+          const factor = dist / touchStartDist
+          const worldBefore = screenToWorld(midX, midY)
+          const newZoom = Math.min(Math.max(0.15, panZoomRef.current.zoom * factor), 5.0)
+          onPanZoomChange({
+            zoom: newZoom,
+            pan: {
+              x: midX - worldBefore.x * newZoom,
+              y: midY + worldBefore.y * newZoom
+            }
+          })
+        }
+        touchStartDist = dist
+      }
+    }
+
+    const onTouchEnd = (e: TouchEvent) => {
+      const inter = interStateRef.current
+      if (isTouchTap && e.changedTouches.length === 1) {
+        const t = e.changedTouches[0]
+        const rect = canvas.getBoundingClientRect()
+        const sx = t.clientX - rect.left
+        const sy = t.clientY - rect.top
+        const world = screenToWorld(sx, sy)
+
+        const clickedCorner = findCornerAt(world.x, world.y)
+        const clickedWall = findWallAt(world.x, world.y)
+        const clickedRoom = findRoomAt(world.x, world.y)
+        const clickedPoi = findPoiAt(world.x, world.y)
+        const clickedPano = findPanoAt(world.x, world.y)
+
+        const currentTool = toolRef.current
+
+        if (currentTool === 'delete') {
+          if (clickedCorner) onDeleteCorner(clickedCorner.id)
+          else if (clickedWall) onDeleteWall(clickedWall.id)
+          else if (clickedRoom) onDeleteRoom(clickedRoom.id)
+          else if (clickedPoi) onDeletePoi(clickedPoi.id)
+          else if (clickedPano) onDeletePano(clickedPano.id)
+        } else if (currentTool === 'select') {
+          if (clickedCorner) onSelectCorner(clickedCorner.id)
+          else if (clickedWall) onSelectWall(clickedWall.id)
+          else if (clickedRoom) onSelectRoom(clickedRoom.id)
+          else if (clickedPoi) onSelectPoi(clickedPoi.id)
+          else if (clickedPano) onSelectPano(clickedPano.id)
+          else {
+            onSelectCorner(null)
+            onSelectWall(null)
+            onSelectRoom(null)
+            onSelectPoi(null)
+            onSelectPano(null)
+          }
+        } else if (currentTool === 'corner') {
+          if (clickedCorner) {
+            onOpenCornerEditModal(clickedCorner)
+          } else {
+            onFastCreateCorner(snap(world.x), snap(world.y))
+          }
+        } else if (currentTool === 'wall') {
+          if (clickedCorner) {
+            if (!inter.wallStartCornerId) {
+              inter.wallStartCornerId = clickedCorner.id
+              onStatusHintChange(`Начало стены [${clickedCorner.id}]. Кликните по второй точке.`)
+            } else if (inter.wallStartCornerId !== clickedCorner.id) {
+              onCreateWall(inter.wallStartCornerId, clickedCorner.id)
+              inter.wallStartCornerId = null
+              onStatusHintChange('Стена создана.')
+            }
+          } else if (inter.wallStartCornerId && onFastCreateWallCorner) {
+            onFastCreateWallCorner(snap(world.x), snap(world.y), inter.wallStartCornerId)
+            inter.wallStartCornerId = null
+          }
+        } else if (currentTool === 'room') {
+          if (clickedCorner) {
+            if (inter.roomDraftCorners.length === 0) {
+              inter.roomDraftCorners.push(clickedCorner.id)
+              onStatusHintChange(`Начало зоны [${clickedCorner.id}]. Кликайте по остальным углам.`)
+            } else if (inter.roomDraftCorners[0] === clickedCorner.id && inter.roomDraftCorners.length >= 3) {
+              onOpenRoomCreateModal([...inter.roomDraftCorners])
+              inter.roomDraftCorners = []
+            } else if (!inter.roomDraftCorners.includes(clickedCorner.id)) {
+              inter.roomDraftCorners.push(clickedCorner.id)
+            }
+          }
+        } else if (currentTool === 'poi') {
+          onOpenPoiCreateModal(snap(world.x), snap(world.y))
+        } else if (currentTool === 'pano') {
+          const r = findRoomAt(world.x, world.y)
+          onOpenPanoCreateModal(snap(world.x), snap(world.y), r ? r.id : undefined)
+        }
+      }
+
+      inter.isDraggingCorner = false
+      inter.isDraggingPoi = false
+      inter.isDraggingPano = false
+      inter.draggedId = null
+      inter.isPanning = false
+      touchStartDist = 0
+      isTouchTap = false
+    }
+
     canvas.addEventListener('wheel', onNativeWheel, { passive: false })
+    canvas.addEventListener('touchstart', onTouchStart, { passive: false })
+    canvas.addEventListener('touchmove', onTouchMove, { passive: false })
+    canvas.addEventListener('touchend', onTouchEnd)
     window.addEventListener('keydown', onKeyDown)
     window.addEventListener('keyup', onKeyUp)
 
     return () => {
       canvas.removeEventListener('wheel', onNativeWheel)
+      canvas.removeEventListener('touchstart', onTouchStart)
+      canvas.removeEventListener('touchmove', onTouchMove)
+      canvas.removeEventListener('touchend', onTouchEnd)
       window.removeEventListener('keydown', onKeyDown)
       window.removeEventListener('keyup', onKeyUp)
     }
@@ -1272,6 +1491,68 @@ export function EditorCanvas({
         onContextMenu={handleContextMenu}
         className="w-full h-full block"
       />
+
+      {/* Кнопки масштабирования холста (удобно на мобилке и тачпадах) */}
+      <div className="absolute bottom-4 right-4 flex flex-col gap-1.5 z-10 pointer-events-auto">
+        <button
+          type="button"
+          onClick={() => {
+            const newZoom = Math.min(panZoom.zoom * 1.25, 5.0)
+            const c = containerRef.current
+            const cx = c ? c.clientWidth / 2 : 300
+            const cy = c ? c.clientHeight / 2 : 300
+            const worldCenter = screenToWorld(cx, cy)
+            onPanZoomChange({
+              zoom: newZoom,
+              pan: {
+                x: cx - worldCenter.x * newZoom,
+                y: cy + worldCenter.y * newZoom
+              }
+            })
+          }}
+          className="size-9 rounded-xl bg-slate-800/90 hover:bg-slate-700 text-slate-200 border border-slate-700 shadow-md flex items-center justify-center text-sm font-bold active:scale-95 transition"
+          title="Приблизить"
+        >
+          +
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            const newZoom = Math.max(panZoom.zoom / 1.25, 0.15)
+            const c = containerRef.current
+            const cx = c ? c.clientWidth / 2 : 300
+            const cy = c ? c.clientHeight / 2 : 300
+            const worldCenter = screenToWorld(cx, cy)
+            onPanZoomChange({
+              zoom: newZoom,
+              pan: {
+                x: cx - worldCenter.x * newZoom,
+                y: cy + worldCenter.y * newZoom
+              }
+            })
+          }}
+          className="size-9 rounded-xl bg-slate-800/90 hover:bg-slate-700 text-slate-200 border border-slate-700 shadow-md flex items-center justify-center text-sm font-bold active:scale-95 transition"
+          title="Отдалить"
+        >
+          −
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            const c = containerRef.current
+            const cx = c ? c.clientWidth / 2 : 300
+            const cy = c ? c.clientHeight / 2 : 300
+            onPanZoomChange({
+              zoom: 1.0,
+              pan: { x: cx - 200, y: cy + 150 }
+            })
+          }}
+          className="size-9 rounded-xl bg-slate-800/90 hover:bg-slate-700 text-slate-200 border border-slate-700 shadow-md flex items-center justify-center text-[11px] font-bold active:scale-95 transition"
+          title="Сброс масштаба (1:1)"
+        >
+          1:1
+        </button>
+      </div>
     </div>
   )
 }
