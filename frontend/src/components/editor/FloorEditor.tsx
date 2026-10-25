@@ -8,6 +8,7 @@ import { EditorHeader } from './EditorHeader'
 import { EditorSidebar } from './EditorSidebar'
 import { EditorCanvas } from './EditorCanvas'
 import { EditorStatusBar } from './EditorStatusBar'
+import { MobileToolMenu } from './MobileToolMenu'
 
 import { CornerCreateModal } from './modals/CornerCreateModal'
 import { CornerEditModal } from './modals/CornerEditModal'
@@ -847,6 +848,15 @@ export function FloorEditor({ space, onBack: _onBack, onUpdateSpace }: FloorEdit
         onZoomIn={handleZoomIn}
         onZoomOut={handleZoomOut}
         onResetView={handleResetView}
+      />
+
+      {/* Мобильное всплывающее меню выбора инструментов */}
+      <MobileToolMenu
+        tool={tool}
+        onSelectTool={handleSelectTool}
+        statusHint={statusHint}
+        hasActiveAction={tool === 'wall' || tool === 'room'}
+        onCancelAction={() => handleSelectTool('select')}
       />
 
       {/* Модальные окна */}

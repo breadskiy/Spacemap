@@ -67,6 +67,23 @@ function distToSegment(px: number, py: number, x1: number, y1: number, x2: numbe
   return Math.hypot(px - (x1 + t * (x2 - x1)), py - (y1 + t * (y2 - y1)))
 }
 
+function isPointInRoom(wx: number, wy: number, room: PlanRoom, floor: PlanFloor): boolean {
+  if (!room.corners || room.corners.length < 3) return false
+  const pts = room.corners
+    .map(cid => floor.corners.find(c => c.id === cid))
+    .filter((c): c is PlanCorner => !!c)
+  if (pts.length < 3) return false
+
+  let inside = false
+  for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) {
+    const xi = pts[i].x, yi = pts[i].y
+    const xj = pts[j].x, yj = pts[j].y
+    const intersect = ((yi > wy) !== (yj > wy)) && (wx < ((xj - xi) * (wy - yi)) / (yj - yi) + xi)
+    if (intersect) inside = !inside
+  }
+  return inside
+}
+
 function getRoomCenter(room: PlanRoom, floor: PlanFloor): { x: number; y: number } {
   if (!room.corners || room.corners.length === 0) return { x: 0, y: 0 }
   let sumX = 0
@@ -122,10 +139,71 @@ export function EditorCanvas({
 }: EditorCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
   const containerRef = useRef<HTMLDivElement | null>(null)
+  const floorRef = useRef(floor)
+  floorRef.current = floor
   const panZoomRef = useRef(panZoom)
   panZoomRef.current = panZoom
   const toolRef = useRef(tool)
   toolRef.current = tool
+
+  const callbacksRef = useRef({
+    onSelectCorner,
+    onSelectWall,
+    onSelectRoom,
+    onSelectPoi,
+    onSelectPano,
+    onCornerMove,
+    onPoiMove,
+    onPanoMove,
+    onCreateWall,
+    onDeleteCorner,
+    onDeleteWall,
+    onDeleteRoom,
+    onDeletePoi,
+    onDeletePano,
+    onFastCreateCorner,
+    onFastCreateWallCorner,
+    onOpenCornerCreateModal,
+    onOpenCornerEditModal,
+    onOpenRoomCreateModal,
+    onOpenRoomEditModal,
+    onOpenPoiCreateModal,
+    onOpenPoiEditModal,
+    onOpenPanoCreateModal,
+    onOpenPanoViewerModal,
+    onCursorMove,
+    onStatusHintChange,
+    onPanZoomChange
+  })
+  callbacksRef.current = {
+    onSelectCorner,
+    onSelectWall,
+    onSelectRoom,
+    onSelectPoi,
+    onSelectPano,
+    onCornerMove,
+    onPoiMove,
+    onPanoMove,
+    onCreateWall,
+    onDeleteCorner,
+    onDeleteWall,
+    onDeleteRoom,
+    onDeletePoi,
+    onDeletePano,
+    onFastCreateCorner,
+    onFastCreateWallCorner,
+    onOpenCornerCreateModal,
+    onOpenCornerEditModal,
+    onOpenRoomCreateModal,
+    onOpenRoomEditModal,
+    onOpenPoiCreateModal,
+    onOpenPoiEditModal,
+    onOpenPanoCreateModal,
+    onOpenPanoViewerModal,
+    onCursorMove,
+    onStatusHintChange,
+    onPanZoomChange
+  }
 
   useEffect(() => {
     interStateRef.current.wallStartCornerId = null
@@ -152,16 +230,30 @@ export function EditorCanvas({
     roomDraftCorners: [] as string[]
   })
 
+  // Точное получение экранных координат Canvas с учетом CSS-масштаба
+  const getCanvasCoords = useCallback((clientX: number, clientY: number) => {
+    const canvas = canvasRef.current
+    if (!canvas) return { sx: 0, sy: 0 }
+    const rect = canvas.getBoundingClientRect()
+    const dpr = window.devicePixelRatio || 1
+    const cssWidth = canvas.width / dpr
+    const cssHeight = canvas.height / dpr
+    const scaleX = rect.width > 0 ? cssWidth / rect.width : 1
+    const scaleY = rect.height > 0 ? cssHeight / rect.height : 1
+    return {
+      sx: (clientX - rect.left) * scaleX,
+      sy: (clientY - rect.top) * scaleY
+    }
+  }, [])
+
   // Координатные преобразования (Декартова плоскость: +X вправо, +Y вверх)
-  const screenToWorld = useCallback(
-    (sx: number, sy: number) => {
-      return {
-        x: (sx - panZoom.pan.x) / panZoom.zoom,
-        y: (panZoom.pan.y - sy) / panZoom.zoom
-      }
-    },
-    [panZoom]
-  )
+  const screenToWorld = useCallback((sx: number, sy: number) => {
+    const pz = panZoomRef.current
+    return {
+      x: (sx - pz.pan.x) / pz.zoom,
+      y: (pz.pan.y - sy) / pz.zoom
+    }
+  }, [])
 
   const worldToCanvas = useCallback((wx: number, wy: number) => {
     return {
@@ -170,62 +262,59 @@ export function EditorCanvas({
     }
   }, [])
 
-  // Поиск объектов под курсором
-  const findCornerAt = useCallback(
-    (wx: number, wy: number, threshold?: number) => {
-      if (!floor || !floor.corners) return null
-      const th = threshold ?? 14 / panZoom.zoom
-      return floor.corners.find(c => Math.hypot(c.x - wx, c.y - wy) <= th) || null
-    },
-    [floor, panZoom.zoom]
-  )
+  // Поиск объектов под курсором (всегда с актуальными floorRef и panZoomRef)
+  const findCornerAt = useCallback((wx: number, wy: number, threshold?: number) => {
+    const fl = floorRef.current
+    const pz = panZoomRef.current
+    if (!fl || !fl.corners) return null
+    const th = threshold ?? 14 / pz.zoom
+    return fl.corners.find(c => Math.hypot(c.x - wx, c.y - wy) <= th) || null
+  }, [])
 
-  const findWallAt = useCallback(
-    (wx: number, wy: number, threshold?: number) => {
-      if (!floor || !floor.walls) return null
-      const th = threshold ?? 10 / panZoom.zoom
-      return (
-        floor.walls.find(w => {
-          const c1 = floor.corners.find(c => c.id === w.from)
-          const c2 = floor.corners.find(c => c.id === w.to)
-          if (!c1 || !c2) return false
-          return distToSegment(wx, wy, c1.x, c1.y, c2.x, c2.y) <= th
-        }) || null
-      )
-    },
-    [floor, panZoom.zoom]
-  )
+  const findWallAt = useCallback((wx: number, wy: number, threshold?: number) => {
+    const fl = floorRef.current
+    const pz = panZoomRef.current
+    if (!fl || !fl.walls) return null
+    const th = threshold ?? 10 / pz.zoom
+    return (
+      fl.walls.find(w => {
+        const c1 = fl.corners.find(c => c.id === w.from)
+        const c2 = fl.corners.find(c => c.id === w.to)
+        if (!c1 || !c2) return false
+        return distToSegment(wx, wy, c1.x, c1.y, c2.x, c2.y) <= th
+      }) || null
+    )
+  }, [])
 
-  const findRoomAt = useCallback(
-    (wx: number, wy: number) => {
-      if (!floor || !floor.rooms) return null
-      return (
-        floor.rooms.find(room => {
-          const center = getRoomCenter(room, floor)
-          return Math.hypot(wx - center.x, wy - center.y) <= 45 / panZoom.zoom
-        }) || null
-      )
-    },
-    [floor, panZoom.zoom]
-  )
+  const findRoomAt = useCallback((wx: number, wy: number) => {
+    const fl = floorRef.current
+    const pz = panZoomRef.current
+    if (!fl || !fl.rooms) return null
+    const insideRoom = fl.rooms.find(room => isPointInRoom(wx, wy, room, fl))
+    if (insideRoom) return insideRoom
+    return (
+      fl.rooms.find(room => {
+        const center = getRoomCenter(room, fl)
+        return Math.hypot(wx - center.x, wy - center.y) <= 45 / pz.zoom
+      }) || null
+    )
+  }, [])
 
-  const findPoiAt = useCallback(
-    (wx: number, wy: number, threshold?: number) => {
-      if (!floor || !floor.pois) return null
-      const th = threshold ?? 14 / panZoom.zoom
-      return floor.pois.find(p => Math.hypot(p.x - wx, p.y - wy) <= th) || null
-    },
-    [floor, panZoom.zoom]
-  )
+  const findPoiAt = useCallback((wx: number, wy: number, threshold?: number) => {
+    const fl = floorRef.current
+    const pz = panZoomRef.current
+    if (!fl || !fl.pois) return null
+    const th = threshold ?? 14 / pz.zoom
+    return fl.pois.find(p => Math.hypot(p.x - wx, p.y - wy) <= th) || null
+  }, [])
 
-  const findPanoAt = useCallback(
-    (wx: number, wy: number, threshold?: number) => {
-      if (!floor || !floor.panoramas) return null
-      const th = threshold ?? 16 / panZoom.zoom
-      return floor.panoramas.find(p => Math.hypot(p.x - wx, p.y - wy) <= th) || null
-    },
-    [floor, panZoom.zoom]
-  )
+  const findPanoAt = useCallback((wx: number, wy: number, threshold?: number) => {
+    const fl = floorRef.current
+    const pz = panZoomRef.current
+    if (!fl || !fl.panoramas) return null
+    const th = threshold ?? 16 / pz.zoom
+    return fl.panoramas.find(p => Math.hypot(p.x - wx, p.y - wy) <= th) || null
+  }, [])
 
   // Главный цикл отрисовки Canvas
   const render = useCallback(() => {
@@ -812,9 +901,7 @@ export function EditorCanvas({
     const canvas = canvasRef.current
     if (!canvas || !floor) return
 
-    const rect = canvas.getBoundingClientRect()
-    const sx = e.clientX - rect.left
-    const sy = e.clientY - rect.top
+    const { sx, sy } = getCanvasCoords(e.clientX, e.clientY)
     const world = screenToWorld(sx, sy)
     const inter = interStateRef.current
 
@@ -1028,9 +1115,7 @@ export function EditorCanvas({
     const canvas = canvasRef.current
     if (!canvas || !floor) return
 
-    const rect = canvas.getBoundingClientRect()
-    const sx = e.clientX - rect.left
-    const sy = e.clientY - rect.top
+    const { sx, sy } = getCanvasCoords(e.clientX, e.clientY)
     const world = screenToWorld(sx, sy)
     const inter = interStateRef.current
 
@@ -1119,9 +1204,7 @@ export function EditorCanvas({
       e.preventDefault()
       e.stopPropagation()
 
-      const rect = canvas.getBoundingClientRect()
-      const sx = e.clientX - rect.left
-      const sy = e.clientY - rect.top
+      const { sx, sy } = getCanvasCoords(e.clientX, e.clientY)
 
       let zoomFactor: number
       if (e.ctrlKey) {
@@ -1186,95 +1269,104 @@ export function EditorCanvas({
 
     const onTouchStart = (e: TouchEvent) => {
       e.preventDefault()
-      const rect = canvas.getBoundingClientRect()
+      const cb = callbacksRef.current
+      const inter = interStateRef.current
+      const pz = panZoomRef.current
+
       if (e.touches.length === 1) {
         const t = e.touches[0]
-        const sx = t.clientX - rect.left
-        const sy = t.clientY - rect.top
+        const { sx, sy } = getCanvasCoords(t.clientX, t.clientY)
         touchStartX = sx
         touchStartY = sy
         isTouchTap = true
-        touchPanStart = { x: sx - panZoomRef.current.pan.x, y: sy - panZoomRef.current.pan.y }
+        touchPanStart = { x: sx - pz.pan.x, y: sy - pz.pan.y }
 
         const world = screenToWorld(sx, sy)
-        const clickedCorner = findCornerAt(world.x, world.y)
-        const clickedPoi = findPoiAt(world.x, world.y)
-        const clickedPano = findPanoAt(world.x, world.y)
+        const touchTh = 26 / pz.zoom
+        const clickedCorner = findCornerAt(world.x, world.y, touchTh)
+        const clickedPoi = findPoiAt(world.x, world.y, touchTh)
+        const clickedPano = findPanoAt(world.x, world.y, 28 / pz.zoom)
 
         if (toolRef.current === 'select') {
           if (clickedCorner) {
-            interStateRef.current.isDraggingCorner = true
-            interStateRef.current.draggedId = clickedCorner.id
-            interStateRef.current.isPanning = false
-            onSelectCorner(clickedCorner.id)
+            inter.isDraggingCorner = true
+            inter.draggedId = clickedCorner.id
+            inter.isPanning = false
+            cb.onSelectCorner(clickedCorner.id)
             return
           }
           if (clickedPoi) {
-            interStateRef.current.isDraggingPoi = true
-            interStateRef.current.draggedId = clickedPoi.id
-            interStateRef.current.isPanning = false
-            onSelectPoi(clickedPoi.id)
+            inter.isDraggingPoi = true
+            inter.draggedId = clickedPoi.id
+            inter.isPanning = false
+            cb.onSelectPoi(clickedPoi.id)
             return
           }
           if (clickedPano) {
-            interStateRef.current.isDraggingPano = true
-            interStateRef.current.draggedId = clickedPano.id
-            interStateRef.current.isPanning = false
-            onSelectPano(clickedPano.id)
+            inter.isDraggingPano = true
+            inter.draggedId = clickedPano.id
+            inter.isPanning = false
+            cb.onSelectPano(clickedPano.id)
             return
           }
-          interStateRef.current.isPanning = true
-          interStateRef.current.panStart = touchPanStart
+          inter.isPanning = true
+          inter.panStart = touchPanStart
         } else {
-          interStateRef.current.isPanning = false
+          inter.isPanning = true
+          inter.panStart = touchPanStart
         }
       } else if (e.touches.length === 2) {
         isTouchTap = false
-        interStateRef.current.isPanning = true
-        interStateRef.current.isDraggingCorner = false
-        interStateRef.current.isDraggingPoi = false
-        interStateRef.current.isDraggingPano = false
-        interStateRef.current.draggedId = null
+        inter.isPanning = true
+        inter.isDraggingCorner = false
+        inter.isDraggingPoi = false
+        inter.isDraggingPano = false
+        inter.draggedId = null
 
         const t1 = e.touches[0]
         const t2 = e.touches[1]
         touchStartDist = Math.hypot(t2.clientX - t1.clientX, t2.clientY - t1.clientY)
-        const midX = (t1.clientX + t2.clientX) / 2 - rect.left
-        const midY = (t1.clientY + t2.clientY) / 2 - rect.top
-        touchPanStart = { x: midX - panZoomRef.current.pan.x, y: midY - panZoomRef.current.pan.y }
+        const midClientX = (t1.clientX + t2.clientX) / 2
+        const midClientY = (t1.clientY + t2.clientY) / 2
+        const { sx: midX, sy: midY } = getCanvasCoords(midClientX, midClientY)
+        touchPanStart = { x: midX - pz.pan.x, y: midY - pz.pan.y }
       }
     }
 
     const onTouchMove = (e: TouchEvent) => {
       e.preventDefault()
-      const rect = canvas.getBoundingClientRect()
+      const cb = callbacksRef.current
+      const inter = interStateRef.current
+      const pz = panZoomRef.current
+
       if (e.touches.length === 1) {
         const t = e.touches[0]
-        const sx = t.clientX - rect.left
-        const sy = t.clientY - rect.top
-        if (Math.hypot(sx - touchStartX, sy - touchStartY) > 8) {
+        const { sx, sy } = getCanvasCoords(t.clientX, t.clientY)
+        const moveDist = Math.hypot(sx - touchStartX, sy - touchStartY)
+
+        if (moveDist > 8) {
           isTouchTap = false
         }
 
-        const inter = interStateRef.current
         const world = screenToWorld(sx, sy)
 
         if (inter.isDraggingCorner && inter.draggedId) {
-          onCornerMove(inter.draggedId, snap(world.x), snap(world.y))
+          cb.onCornerMove(inter.draggedId, snap(world.x), snap(world.y))
           return
         }
         if (inter.isDraggingPoi && inter.draggedId) {
-          onPoiMove(inter.draggedId, snap(world.x), snap(world.y))
+          cb.onPoiMove(inter.draggedId, snap(world.x), snap(world.y))
           return
         }
         if (inter.isDraggingPano && inter.draggedId) {
-          onPanoMove(inter.draggedId, snap(world.x), snap(world.y))
+          cb.onPanoMove(inter.draggedId, snap(world.x), snap(world.y))
           return
         }
 
-        if (inter.isPanning) {
-          onPanZoomChange({
-            zoom: panZoomRef.current.zoom,
+        // Панорамируем холст ТОЛЬКО если палец сдвинулся больше чем порог тапа (> 8px)
+        if (!isTouchTap && inter.isPanning) {
+          cb.onPanZoomChange({
+            zoom: pz.zoom,
             pan: {
               x: sx - touchPanStart.x,
               y: sy - touchPanStart.y
@@ -1285,15 +1377,16 @@ export function EditorCanvas({
         isTouchTap = false
         const t1 = e.touches[0]
         const t2 = e.touches[1]
-        const midX = (t1.clientX + t2.clientX) / 2 - rect.left
-        const midY = (t1.clientY + t2.clientY) / 2 - rect.top
+        const midClientX = (t1.clientX + t2.clientX) / 2
+        const midClientY = (t1.clientY + t2.clientY) / 2
+        const { sx: midX, sy: midY } = getCanvasCoords(midClientX, midClientY)
 
         const dist = Math.hypot(t2.clientX - t1.clientX, t2.clientY - t1.clientY)
         if (touchStartDist > 0) {
           const factor = dist / touchStartDist
           const worldBefore = screenToWorld(midX, midY)
-          const newZoom = Math.min(Math.max(0.15, panZoomRef.current.zoom * factor), 5.0)
-          onPanZoomChange({
+          const newZoom = Math.min(Math.max(0.15, pz.zoom * factor), 5.0)
+          cb.onPanZoomChange({
             zoom: newZoom,
             pan: {
               x: midX - worldBefore.x * newZoom,
@@ -1305,79 +1398,97 @@ export function EditorCanvas({
       }
     }
 
-    const onTouchEnd = (e: TouchEvent) => {
+    const onTouchEnd = (_e: TouchEvent) => {
+      const cb = callbacksRef.current
       const inter = interStateRef.current
-      if (isTouchTap && e.changedTouches.length === 1) {
-        const t = e.changedTouches[0]
-        const rect = canvas.getBoundingClientRect()
-        const sx = t.clientX - rect.left
-        const sy = t.clientY - rect.top
-        const world = screenToWorld(sx, sy)
+      const pz = panZoomRef.current
 
-        const clickedCorner = findCornerAt(world.x, world.y)
-        const clickedWall = findWallAt(world.x, world.y)
+      if (isTouchTap) {
+        // Берем touchStartX и touchStartY - место, куда пользователь прикоснулся
+        const world = screenToWorld(touchStartX, touchStartY)
+
+        const touchTh = 26 / pz.zoom
+        const touchWallTh = 18 / pz.zoom
+        const touchPanoTh = 28 / pz.zoom
+
+        const clickedCorner = findCornerAt(world.x, world.y, touchTh)
+        const clickedWall = findWallAt(world.x, world.y, touchWallTh)
         const clickedRoom = findRoomAt(world.x, world.y)
-        const clickedPoi = findPoiAt(world.x, world.y)
-        const clickedPano = findPanoAt(world.x, world.y)
+        const clickedPoi = findPoiAt(world.x, world.y, touchTh)
+        const clickedPano = findPanoAt(world.x, world.y, touchPanoTh)
 
         const currentTool = toolRef.current
 
         if (currentTool === 'delete') {
-          if (clickedCorner) onDeleteCorner(clickedCorner.id)
-          else if (clickedWall) onDeleteWall(clickedWall.id)
-          else if (clickedRoom) onDeleteRoom(clickedRoom.id)
-          else if (clickedPoi) onDeletePoi(clickedPoi.id)
-          else if (clickedPano) onDeletePano(clickedPano.id)
+          if (clickedCorner) cb.onDeleteCorner(clickedCorner.id)
+          else if (clickedWall) cb.onDeleteWall(clickedWall.id)
+          else if (clickedRoom) cb.onDeleteRoom(clickedRoom.id)
+          else if (clickedPoi) cb.onDeletePoi(clickedPoi.id)
+          else if (clickedPano) cb.onDeletePano(clickedPano.id)
         } else if (currentTool === 'select') {
-          if (clickedCorner) onSelectCorner(clickedCorner.id)
-          else if (clickedWall) onSelectWall(clickedWall.id)
-          else if (clickedRoom) onSelectRoom(clickedRoom.id)
-          else if (clickedPoi) onSelectPoi(clickedPoi.id)
-          else if (clickedPano) onSelectPano(clickedPano.id)
+          if (clickedCorner) cb.onSelectCorner(clickedCorner.id)
+          else if (clickedWall) cb.onSelectWall(clickedWall.id)
+          else if (clickedRoom) cb.onSelectRoom(clickedRoom.id)
+          else if (clickedPoi) cb.onSelectPoi(clickedPoi.id)
+          else if (clickedPano) cb.onSelectPano(clickedPano.id)
           else {
-            onSelectCorner(null)
-            onSelectWall(null)
-            onSelectRoom(null)
-            onSelectPoi(null)
-            onSelectPano(null)
+            cb.onSelectCorner(null)
+            cb.onSelectWall(null)
+            cb.onSelectRoom(null)
+            cb.onSelectPoi(null)
+            cb.onSelectPano(null)
           }
         } else if (currentTool === 'corner') {
           if (clickedCorner) {
-            onOpenCornerEditModal(clickedCorner)
+            cb.onOpenCornerEditModal(clickedCorner)
           } else {
-            onFastCreateCorner(snap(world.x), snap(world.y))
+            cb.onFastCreateCorner(snap(world.x), snap(world.y))
           }
         } else if (currentTool === 'wall') {
           if (clickedCorner) {
             if (!inter.wallStartCornerId) {
               inter.wallStartCornerId = clickedCorner.id
-              onStatusHintChange(`Начало стены [${clickedCorner.id}]. Кликните по второй точке.`)
+              cb.onStatusHintChange(`Начало стены [${clickedCorner.id}]. Нажмите на вторую точку.`)
             } else if (inter.wallStartCornerId !== clickedCorner.id) {
-              onCreateWall(inter.wallStartCornerId, clickedCorner.id)
-              inter.wallStartCornerId = null
-              onStatusHintChange('Стена создана.')
+              cb.onCreateWall(inter.wallStartCornerId, clickedCorner.id)
+              inter.wallStartCornerId = clickedCorner.id
+              cb.onStatusHintChange('Стена создана. Нажмите следующую точку или выберите другой инструмент.')
             }
-          } else if (inter.wallStartCornerId && onFastCreateWallCorner) {
-            onFastCreateWallCorner(snap(world.x), snap(world.y), inter.wallStartCornerId)
-            inter.wallStartCornerId = null
+          } else if (inter.wallStartCornerId && cb.onFastCreateWallCorner) {
+            const newId = cb.onFastCreateWallCorner(snap(world.x), snap(world.y), inter.wallStartCornerId)
+            inter.wallStartCornerId = newId
+            cb.onStatusHintChange(`Построена стена до новой точки [${newId}].`)
+          } else if (cb.onFastCreateWallCorner) {
+            const newId = cb.onFastCreateWallCorner(snap(world.x), snap(world.y))
+            inter.wallStartCornerId = newId
+            cb.onStatusHintChange(`Создана начальная точка [${newId}]. Нажмите в следующем месте для построения стены.`)
           }
         } else if (currentTool === 'room') {
           if (clickedCorner) {
             if (inter.roomDraftCorners.length === 0) {
               inter.roomDraftCorners.push(clickedCorner.id)
-              onStatusHintChange(`Начало зоны [${clickedCorner.id}]. Кликайте по остальным углам.`)
+              cb.onStatusHintChange(`Начало зоны [${clickedCorner.id}]. Нажимайте на остальные углы помещения.`)
             } else if (inter.roomDraftCorners[0] === clickedCorner.id && inter.roomDraftCorners.length >= 3) {
-              onOpenRoomCreateModal([...inter.roomDraftCorners])
+              cb.onOpenRoomCreateModal([...inter.roomDraftCorners])
               inter.roomDraftCorners = []
             } else if (!inter.roomDraftCorners.includes(clickedCorner.id)) {
               inter.roomDraftCorners.push(clickedCorner.id)
+              cb.onStatusHintChange(`Добавлен угол [${clickedCorner.id}]. Нажмите на первый угол [${inter.roomDraftCorners[0]}] для замыкания.`)
             }
           }
         } else if (currentTool === 'poi') {
-          onOpenPoiCreateModal(snap(world.x), snap(world.y))
+          if (clickedPoi) {
+            cb.onOpenPoiEditModal(clickedPoi)
+          } else {
+            cb.onOpenPoiCreateModal(snap(world.x), snap(world.y))
+          }
         } else if (currentTool === 'pano') {
-          const r = findRoomAt(world.x, world.y)
-          onOpenPanoCreateModal(snap(world.x), snap(world.y), r ? r.id : undefined)
+          if (clickedPano) {
+            cb.onOpenPanoViewerModal(clickedPano)
+          } else {
+            const r = findRoomAt(world.x, world.y)
+            cb.onOpenPanoCreateModal(snap(world.x), snap(world.y), r ? r.id : undefined)
+          }
         }
       }
 
@@ -1411,8 +1522,8 @@ export function EditorCanvas({
     const canvas = canvasRef.current
     if (!canvas || !floor) return
 
-    const rect = canvas.getBoundingClientRect()
-    const world = screenToWorld(e.clientX - rect.left, e.clientY - rect.top)
+    const { sx, sy } = getCanvasCoords(e.clientX, e.clientY)
+    const world = screenToWorld(sx, sy)
 
     const clickedPano = findPanoAt(world.x, world.y)
     if (clickedPano) {
@@ -1449,8 +1560,8 @@ export function EditorCanvas({
     const canvas = canvasRef.current
     if (!canvas || !floor) return
 
-    const rect = canvas.getBoundingClientRect()
-    const world = screenToWorld(e.clientX - rect.left, e.clientY - rect.top)
+    const { sx, sy } = getCanvasCoords(e.clientX, e.clientY)
+    const world = screenToWorld(sx, sy)
     const inter = interStateRef.current
 
     if (tool === 'room' && inter.roomDraftCorners.length > 0) {
@@ -1493,7 +1604,7 @@ export function EditorCanvas({
       />
 
       {/* Кнопки масштабирования холста (удобно на мобилке и тачпадах) */}
-      <div className="absolute bottom-4 right-4 flex flex-col gap-1.5 z-10 pointer-events-auto">
+      <div className="absolute bottom-20 md:bottom-4 right-3 md:right-4 flex flex-col gap-1.5 z-10 pointer-events-auto">
         <button
           type="button"
           onClick={() => {

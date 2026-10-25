@@ -1,0 +1,49 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: spacemap_db
+    restart: always
+    environment:
+      POSTGRES_DB: indoor_maps
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-spacemap_secure_password_2026}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./database/schema.sql:/docker-entrypoint-initdb.d/01_schema.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d indoor_maps"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: spacemap_backend
+    restart: always
+    environment:
+      DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD:-spacemap_secure_password_2026}@db:5432/indoor_maps
+      SECRET_KEY: ${SECRET_KEY:-spacemap_jwt_secret_key_prod_2026}
+    volumes:
+      - backend_uploads:/app/static/uploads
+    depends_on:
+      db:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: spacemap_frontend
+    restart: always
+    depends_on:
+      - backend
+    ports:
+      - "${PORT:-80}:80"
+
+volumes:
+  postgres_data:
+  backend_uploads:

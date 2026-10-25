@@ -1,6 +1,8 @@
+import base64
 import os
 import re
 import shutil
+import tempfile
 import uuid
 from contextlib import asynccontextmanager
 from datetime import datetime
@@ -8,6 +10,7 @@ from pathlib import Path
 from typing import List, Optional
 
 from fastapi import Depends, FastAPI, File, HTTPException, Query, Request, Response, UploadFile, status
+from fastapi.concurrency import run_in_threadpool
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from PIL import Image, ImageDraw
@@ -25,6 +28,7 @@ try:
         get_current_user_optional,
     )
     from qr import build_viewer_url, render_qr_svg, validate_http_url
+    from stitch_panorama import stitch_to_8k
 except ImportError:
     from backend.database import Base, engine, get_db
     from backend import models
@@ -37,6 +41,10 @@ except ImportError:
         get_current_user_optional,
     )
     from backend.qr import build_viewer_url, render_qr_svg, validate_http_url
+    try:
+        from backend.stitch_panorama import stitch_to_8k
+    except ImportError:
+        stitch_to_8k = None
 
 # Создаём таблицы в базе данных при загрузке модуля
 Base.metadata.create_all(bind=engine)
@@ -897,3 +905,70 @@ def delete_poi(poi_id: str, db: Session = Depends(get_db)):
     db.delete(poi)
     db.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+# =============================================================================
+# 7. 📸 PANORAMA 180° + 180° STITCHING ENDPOINT
+# =============================================================================
+
+@app.post(
+    "/api/stitch",
+    summary="Сшивка двух кадров по 180° в цилиндрическую 360° 8K панораму",
+    tags=["Panoramas"],
+)
+async def stitch_panorama_endpoint(
+    frame1: UploadFile = File(...),
+    frame2: UploadFile = File(...),
+):
+    """
+    Принимает два снимка (180° + 180°) зала с перекрытием,
+    сшивает их с помощью алгоритма SIFT + RANSAC + Multiband Feathering
+    и возвращает изображение высокого разрешения (8K).
+    """
+    if stitch_to_8k is None:
+        raise HTTPException(
+            status_code=500,
+            detail="Модуль сшивки панорам (stitch_panorama) недоступен на сервере"
+        )
+
+    tmp_dir = tempfile.mkdtemp(prefix="stitch_")
+    try:
+        ext1 = Path(frame1.filename or "f1.jpg").suffix or ".jpg"
+        ext2 = Path(frame2.filename or "f2.jpg").suffix or ".jpg"
+        p1 = Path(tmp_dir) / f"frame1{ext1}"
+        p2 = Path(tmp_dir) / f"frame2{ext2}"
+        p_out = Path(tmp_dir) / "stitched_8k.jpg"
+
+        content1 = await frame1.read()
+        content2 = await frame2.read()
+        p1.write_bytes(content1)
+        p2.write_bytes(content2)
+
+        # Выполняем вычисления в пуле потоков
+        await run_in_threadpool(stitch_to_8k, str(p1), str(p2), str(p_out))
+
+        if not p_out.exists():
+            raise HTTPException(status_code=500, detail="Ошибка при генерации сшитого файла")
+
+        out_bytes = p_out.read_bytes()
+        b64 = base64.b64encode(out_bytes).decode("utf-8")
+        data_uri = f"data:image/jpeg;base64,{b64}"
+
+        # Сохраняем в постоянное хранилище статики
+        perm_filename = f"stitched_{uuid.uuid4().hex[:12]}.jpg"
+        perm_path = PANORAMAS_DIR / perm_filename
+        perm_path.write_bytes(out_bytes)
+        perm_url = f"/static/uploads/panoramas/{perm_filename}"
+
+        return {
+            "status": "ok",
+            "image": data_uri,
+            "url": perm_url,
+            "size": len(out_bytes),
+            "width": 8192,
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        shutil.rmtree(tmp_dir, ignore_errors=True)
+

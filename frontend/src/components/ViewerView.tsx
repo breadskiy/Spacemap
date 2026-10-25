@@ -858,9 +858,10 @@ export function ViewerView({ space, onBack }: ViewerViewProps) {
         isPanning = true
         const t1 = e.touches[0]
         const t2 = e.touches[1]
+        const rect = canvas.getBoundingClientRect()
         touchStartDist = Math.hypot(t2.clientX - t1.clientX, t2.clientY - t1.clientY)
-        const midX = (t1.clientX + t2.clientX) / 2
-        const midY = (t1.clientY + t2.clientY) / 2
+        const midX = (t1.clientX + t2.clientX) / 2 - rect.left
+        const midY = (t1.clientY + t2.clientY) / 2 - rect.top
         panStart = { x: midX - panRef.current.x, y: midY - panRef.current.y }
       }
     }
@@ -875,10 +876,12 @@ export function ViewerView({ space, onBack }: ViewerViewProps) {
         if (Math.hypot(sx - touchStartX, sy - touchStartY) > 8) {
           isTouchTap = false
         }
-        setPan({
-          x: sx - panStart.x,
-          y: sy - panStart.y
-        })
+        if (!isTouchTap) {
+          setPan({
+            x: sx - panStart.x,
+            y: sy - panStart.y
+          })
+        }
       } else if (e.touches.length === 2) {
         isTouchTap = false
         const t1 = e.touches[0]
@@ -902,13 +905,9 @@ export function ViewerView({ space, onBack }: ViewerViewProps) {
       }
     }
 
-    const handleTouchEnd = (e: TouchEvent) => {
-      if (isTouchTap && e.changedTouches.length === 1) {
-        const t = e.changedTouches[0]
-        const rect = canvas.getBoundingClientRect()
-        const sx = t.clientX - rect.left
-        const sy = t.clientY - rect.top
-        const world = screenToWorld(sx, sy)
+    const handleTouchEnd = (_e: TouchEvent) => {
+      if (isTouchTap) {
+        const world = screenToWorld(touchStartX, touchStartY)
 
         // Построение маршрута тачем
         if (routingStepRef.current === 'pickA') {
